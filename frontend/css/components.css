@@ -1,0 +1,259 @@
+/* Part 2: Cards and Chart Styles */
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-lg);
+}
+
+.summary-card {
+    position: relative;
+    background: var(--color-bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    overflow: hidden;
+    transition: all var(--transition-base);
+    cursor: pointer;
+}
+
+.summary-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.summary-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-color-hover);
+}
+
+.variant-jumbo::before {
+    background: linear-gradient(90deg, var(--color-jumbo), var(--color-jumbo-light));
+}
+
+.variant-jumbo:hover {
+    box-shadow: 0 8px 40px var(--color-jumbo-glow);
+}
+
+.variant-delight::before {
+    background: linear-gradient(90deg, var(--color-delight), var(--color-delight-light));
+}
+
+.variant-delight:hover {
+    box-shadow: 0 8px 40px var(--color-delight-glow);
+}
+
+.variant-hobby::before {
+    background: linear-gradient(90deg, var(--color-hobby), var(--color-hobby-light));
+}
+
+.variant-hobby:hover {
+    box-shadow: 0 8px 40px var(--color-hobby-glow);
+}
+
+.card-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    margin-bottom: var(--space-md);
+}
+
+.card-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-glass);
+    color: var(--color-text-tertiary);
+}
+
+.card-body {
+    margin-bottom: var(--space-lg);
+}
+
+.price-display {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.currency {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+.price-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.variant-jumbo .price-value {
+    color: var(--color-jumbo-light);
+}
+
+.variant-delight .price-value {
+    color: var(--color-delight-light);
+}
+
+.variant-hobby .price-value {
+    color: var(--color-hobby-light);
+}
+
+.price-change {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+}
+
+.change-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.change-value.positive {
+    color: var(--color-success);
+}
+
+.change-value.negative {
+    color: var(--color-danger);
+}
+
+.change-label {
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary);
+}
+
+.card-footer {
+    display: flex;
+    gap: var(--space-xl);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--color-text-primary);
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.chart-tabs {
+    display: flex;
+    gap: var(--space-xs);
+    padding: var(--space-xs);
+    background: var(--color-bg-glass);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+    width: fit-content;
+}
+
+.tab-btn {
+    padding: var(--space-sm) var(--space-lg);
+    font-family: var(--font-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-glass);
+}
+
+.tab-btn.active {
+    color: var(--color-text-primary);
+    background: var(--color-bg-tertiary);
+}
+
+.chart-container {
+    background: var(--color-bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-lg);
+}
+
+.chart-header h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.time-range-selector {
+    display: flex;
+    gap: var(--space-xs);
+    padding: var(--space-xs);
+    background: var(--color-bg-glass);
+    border-radius: var(--radius-sm);
+}
+
+.range-btn {
+    padding: var(--space-xs) var(--space-md);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.range-btn.active {
+    color: var(--color-text-primary);
+    background: var(--color-bg-tertiary);
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 400px;
+}
+
+.chart-wrapper canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-xl);
+    margin-top: var(--space-lg);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border-color);
+}

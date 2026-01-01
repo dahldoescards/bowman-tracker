@@ -1,0 +1,32 @@
+# Render Deployment Configuration
+# Connect your GitHub repo at render.com
+
+services:
+  # Main web service
+  - type: web
+    name: bowman-draft-tracker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_ENV
+        value: production
+      - key: USE_PROXIES
+        value: false
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+  # Cron job for hourly data fetching
+  - type: cron
+    name: bowman-data-fetcher
+    runtime: python
+    schedule: "0 * * * *"  # Every hour at minute 0
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd backend && python -c "from services.scheduler import run_single_fetch; run_single_fetch()"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: USE_PROXIES
+        value: false
