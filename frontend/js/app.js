@@ -153,21 +153,6 @@ async function fetchAPI(endpoint, skipCache = false) {
     return requestPromise;
 }
 
-async function postAPI(endpoint, data = {}) {
-    try {
-        const response = await fetch(`${API_BASE}${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await response.json();
-    } catch (error) {
-        console.error(`API Error (${endpoint}):`, error);
-        throw error;
-    }
-}
-
 // ============================================================================
 // Data Loading
 // ============================================================================
@@ -261,32 +246,6 @@ async function loadSalesTable(variant = 'all') {
     }
 }
 
-async function loadSchedulerStatus() {
-    try {
-        const data = await fetchAPI('/scheduler/status');
-        if (!data.success) return;
-
-        const status = data.status;
-
-        document.getElementById('schedulerStatus').textContent =
-            status.running ? 'Running' : 'Stopped';
-        document.getElementById('schedulerStatus').className =
-            'status-value ' + (status.running ? 'running' : 'stopped');
-
-        document.getElementById('lastFetch').textContent =
-            status.last_run ? formatDate(status.last_run) : 'Never';
-
-        document.getElementById('proxiesActive').textContent =
-            status.proxies_loaded || '0';
-
-        const summary = await fetchAPI('/summary');
-        document.getElementById('totalRecords').textContent =
-            summary.total_sales || '0';
-
-    } catch (error) {
-        console.error('Error loading status:', error);
-    }
-}
 
 // ============================================================================
 // TradingView Lightweight Charts - Candlestick Style
@@ -605,10 +564,15 @@ function setupEventListeners() {
             btn.classList.add('active');
 
             state.currentVariant = btn.dataset.variant;
+
+            // Update chart title
             document.getElementById('chartTitle').textContent =
                 `Price History - ${btn.dataset.variant === 'all' ? 'All Variants' : VARIANT_LABELS[btn.dataset.variant]}`;
 
+            // Reload chart AND sales table for selected variant
             loadChartData(state.currentVariant);
+            state.pagination.page = 1; // Reset to first page
+            loadSalesTable(state.currentVariant);
         });
     });
 
@@ -642,47 +606,6 @@ function setupEventListeners() {
         loadSalesTable(document.getElementById('variantFilter').value);
     });
 
-    // Refresh button
-    document.getElementById('refreshBtn')?.addEventListener('click', async () => {
-        showLoading(true);
-        await loadAllData();
-        showLoading(false);
-        showToast('Data refreshed successfully', 'success');
-    });
-
-    // Scheduler controls
-    document.getElementById('startScheduler')?.addEventListener('click', async () => {
-        try {
-            await postAPI('/scheduler/start');
-            showToast('Scheduler started', 'success');
-            loadSchedulerStatus();
-        } catch (error) {
-            showToast('Failed to start scheduler', 'error');
-        }
-    });
-
-    document.getElementById('stopScheduler')?.addEventListener('click', async () => {
-        try {
-            await postAPI('/scheduler/stop');
-            showToast('Scheduler stopped', 'info');
-            loadSchedulerStatus();
-        } catch (error) {
-            showToast('Failed to stop scheduler', 'error');
-        }
-    });
-
-    document.getElementById('manualFetch')?.addEventListener('click', async () => {
-        showLoading(true);
-        try {
-            const result = await postAPI('/fetch');
-            showToast(`Fetched ${result.stats.new_sales} new sales`, 'success');
-            await loadAllData();
-        } catch (error) {
-            showToast('Fetch failed: ' + error.message, 'error');
-        }
-        showLoading(false);
-    });
-
     // Summary card clicks
     document.querySelectorAll('.summary-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -711,8 +634,7 @@ async function loadAllData() {
     await Promise.all([
         loadSummaryData(),
         loadChartData(state.currentVariant),
-        loadSalesTable('all'),
-        loadSchedulerStatus()
+        loadSalesTable('all')
     ]);
 }
 

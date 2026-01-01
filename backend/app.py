@@ -15,12 +15,11 @@ import sys
 import re
 import gzip
 import logging
-from io import BytesIO
+import time
 from functools import wraps
 from collections import defaultdict
-import time
-from flask import Flask, jsonify, request, send_from_directory, after_this_request
-from datetime import datetime, timedelta
+from flask import Flask, jsonify, request, send_from_directory
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
