@@ -362,8 +362,11 @@ def delete_sales_from_date(from_date: str) -> int:
         p = placeholder()
         
         # First count how many will be deleted
-        cursor.execute(f'SELECT COUNT(*) FROM sales WHERE sale_date >= {p}', (from_date,))
-        count = cursor.fetchone()[0]
+        # Use alias for PostgreSQL RealDictCursor compatibility
+        cursor.execute(f'SELECT COUNT(*) as cnt FROM sales WHERE sale_date >= {p}', (from_date,))
+        result = cursor.fetchone()
+        # Handle both dict (PostgreSQL) and tuple (SQLite) results
+        count = result['cnt'] if isinstance(result, dict) else result[0]
         
         # Delete the sales
         cursor.execute(f'DELETE FROM sales WHERE sale_date >= {p}', (from_date,))
