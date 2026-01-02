@@ -42,12 +42,49 @@ const state = {
     refreshTimer: null,
     cache: new Map(), // Simple cache for API responses
     cacheTimeout: 30000, // Cache for 30 seconds
-    pendingRequests: new Map() // Prevent duplicate requests
+    pendingRequests: new Map(), // Prevent duplicate requests
+    isTransitioning: false // Prevent rapid state changes
 };
 
 // ============================================================================
-// Utility Functions
+// Performance Utilities
 // ============================================================================
+
+// Throttle: limit function calls to once per wait period
+function throttle(func, wait) {
+    let lastTime = 0;
+    return function (...args) {
+        const now = Date.now();
+        if (now - lastTime >= wait) {
+            lastTime = now;
+            return func.apply(this, args);
+        }
+    };
+}
+
+// Debounce: delay function call until after wait period of inactivity
+function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+// RequestAnimationFrame wrapper for smooth DOM updates
+function smoothUpdate(callback) {
+    requestAnimationFrame(() => {
+        callback();
+    });
+}
+
+// Batch DOM updates to reduce reflows
+function batchUpdate(updates) {
+    requestAnimationFrame(() => {
+        updates.forEach(update => update());
+    });
+}
+
 
 function formatCurrency(value) {
     return new Intl.NumberFormat('en-US', {

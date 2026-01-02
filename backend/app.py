@@ -104,18 +104,67 @@ def rate_limit(f):
 
 @app.after_request
 def add_security_headers(response):
-    """Add security headers and gzip compression to all responses."""
+    """Add security headers, ETag support, and gzip compression."""
     # Security headers
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     
-    # Cache headers
+    # Content Security Policy - allows only trusted sources
+    if not request.path.startswith('/api/'):
+        csp = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'self'"
+        )
+        response.headers['Content-Security-Policy'] = csp
+    
+    # Permissions Policy - disable unnecessary browser features
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    
+    # HSTS for HTTPS (only in production)
+    if os.environ.get('FLASK_ENV') == 'production':
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    
+    # Cache headers with smarter defaults
     if request.path.startswith('/api/'):
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        # API responses: short cache with revalidation
+        if request.path == '/api/summary':
+            # Summary changes slowly, cache for 30 seconds
+            response.headers['Cache-Control'] = 'public, max-age=30, stale-while-revalidate=60'
+        elif request.path.startswith('/api/chart/'):
+            # Chart data, cache for 60 seconds
+            response.headers['Cache-Control'] = 'public, max-age=60, stale-while-revalidate=120'
+        else:
+            response.headers['Cache-Control'] = 'no-store, max-age=0'
+    elif request.path.endswith(('.css', '.js')):
+        # Static assets: long cache with versioning
+        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    elif request.path == '/' or request.path.endswith('.html'):
+        # HTML: short cache
+        response.headers['Cache-Control'] = 'public, max-age=300'
     else:
         response.headers['Cache-Control'] = 'public, max-age=3600'
+    
+    # ETag for API responses (enables conditional requests)
+    if request.path.startswith('/api/') and response.status_code == 200:
+        import hashlib
+        data = response.get_data()
+        if data:
+            etag = hashlib.md5(data).hexdigest()
+            response.headers['ETag'] = f'"{etag}"'
+            
+            # Check If-None-Match header
+            if_none_match = request.headers.get('If-None-Match')
+            if if_none_match and if_none_match.strip('"') == etag:
+                response.status_code = 304
+                response.set_data(b'')
+                return response
     
     # Gzip compression for large JSON/text responses only
     try:
@@ -137,6 +186,7 @@ def add_security_headers(response):
         logger.warning(f"Gzip compression failed: {e}")
     
     return response
+
 
 
 # Input validation helpers

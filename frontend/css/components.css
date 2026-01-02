@@ -12,8 +12,12 @@
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
     overflow: hidden;
-    transition: all var(--transition-base);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     cursor: pointer;
+    /* GPU acceleration for smooth animations */
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
 }
 
 .summary-card::before {
@@ -27,7 +31,7 @@
 }
 
 .summary-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-4px) translateZ(0);
     border-color: var(--border-color-hover);
 }
 

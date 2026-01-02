@@ -9,9 +9,15 @@
     <meta name="theme-color" content="#0a0a0f">
     <meta name="robots" content="index, follow">
 
-    <!-- Performance hints -->
+    <!-- Performance: DNS prefetch and preconnect -->
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
     <link rel="dns-prefetch" href="https://unpkg.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Performance: Prefetch API data -->
+    <link rel="prefetch" href="/api/summary" as="fetch" crossorigin>
 
     <title>2025 Bowman Draft Box Tracker | Live Price Tracking</title>
 
@@ -19,22 +25,60 @@
     <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 
+    <!-- Critical CSS inline for fastest first paint -->
+    <style>
+        :root {
+            --color-bg-primary: #0a0a0f;
+            --color-text-primary: #f8fafc
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            min-height: 100vh
+        }
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 15, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s
+        }
+
+        .loading-overlay.visible {
+            opacity: 1;
+            pointer-events: auto
+        }
+    </style>
+
     <!-- Google Fonts - with display swap for faster initial render -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
 
     <!-- TradingView Lightweight Charts - defer for better page load -->
     <script defer
         src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 
-    <!-- Custom Styles -->
+    <!-- Custom Styles - load async after critical CSS -->
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/utilities.css">
 </head>
+
 
 <body>
     <!-- Animated Background -->
