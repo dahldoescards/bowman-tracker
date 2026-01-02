@@ -39,6 +39,10 @@ BOX_COUNT_PATTERNS = [
     (r'case\s*(?:of\s*)?(\d+)', 'case'),
     (r'(\d+)\s*[-\s]?ct\s*case', 'case'),
     
+    # Lot patterns: "Lot of 2", "Lot of 3", etc.
+    (r'lot\s*(?:of\s*)?(\d+)', 'multiple'),
+    (r'(\d+)\s*lot', 'multiple'),
+    
     # Multiple boxes: "2 boxes", "x3 boxes"
     (r'(\d+)\s*boxes', 'multiple'),
     (r'x\s*(\d+)\s*box', 'multiple'),
