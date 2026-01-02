@@ -10,3 +10,14 @@ healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
+
+# Environment variables (set these in Railway dashboard for security)
+# Required:
+#   FLASK_ENV=production
+#   SECRET_KEY=your-secret-key
+#   AUTO_START_SCHEDULER=true  # Enables hourly background data fetching
+#   USE_PROXIES=false
+#
+# Optional:
+#   DATABASE_URL=postgresql://... (add PostgreSQL from Railway marketplace)
+#   SENTRY_DSN=https://...@sentry.io/...

@@ -162,6 +162,14 @@ def validate_variant(variant):
 # Initialize database on startup
 init_database()
 
+# Auto-start scheduler if configured (for production)
+AUTO_START_SCHEDULER = os.environ.get('AUTO_START_SCHEDULER', 'false').lower() == 'true'
+if AUTO_START_SCHEDULER:
+    logger.info("AUTO_START_SCHEDULER enabled, starting background data fetcher...")
+    scheduler = get_scheduler()
+    scheduler.start()
+    logger.info(f"Scheduler started, will fetch data every {scheduler.interval} seconds")
+
 
 # ============================================================================
 # Static File Routes
