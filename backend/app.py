@@ -19,7 +19,7 @@ import logging
 import time
 from functools import wraps
 from collections import defaultdict
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, redirect
 from datetime import datetime
 
 # Configure logging
@@ -100,6 +100,16 @@ def rate_limit(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+
+@app.before_request
+def redirect_to_https():
+    """Redirect HTTP to HTTPS in production."""
+    if os.environ.get('FLASK_ENV') == 'production':
+        # Check if request came over HTTP (Railway sets X-Forwarded-Proto)
+        if request.headers.get('X-Forwarded-Proto', 'https') == 'http':
+            url = request.url.replace('http://', 'https://', 1)
+            return redirect(url, code=301)
 
 
 @app.after_request
@@ -446,6 +456,49 @@ def trigger_fetch():
             'stats': stats
         })
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/refetch', methods=['POST'])
+def refetch_from_date():
+    """Delete sales from a date and re-fetch. Requires secret key."""
+    # Simple protection - require a secret key
+    provided_key = request.headers.get('X-Refetch-Key') or request.json.get('key')
+    expected_key = os.environ.get('SECRET_KEY', '')
+    
+    if not expected_key or provided_key != expected_key:
+        return jsonify({
+            'success': False,
+            'error': 'Invalid or missing refetch key'
+        }), 403
+    
+    from_date = request.json.get('from_date')
+    if not from_date or not validate_date(from_date):
+        return jsonify({
+            'success': False,
+            'error': 'Invalid date format. Use YYYY-MM-DD'
+        }), 400
+    
+    try:
+        from database import delete_sales_from_date
+        
+        # Delete sales from that date onwards
+        deleted_count = delete_sales_from_date(from_date)
+        
+        # Run a fresh fetch
+        fetch_stats = run_single_fetch()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {deleted_count} sales from {from_date} and re-fetched',
+            'deleted_count': deleted_count,
+            'fetch_stats': fetch_stats
+        })
+    except Exception as e:
+        logger.error(f"Refetch failed: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

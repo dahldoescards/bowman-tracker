@@ -347,6 +347,32 @@ def insert_sale(sale_data: dict) -> bool:
         raise
 
 
+def delete_sales_from_date(from_date: str) -> int:
+    """
+    Delete all sales from a specific date onwards.
+    
+    Args:
+        from_date: Date string in YYYY-MM-DD format (e.g., '2026-01-01')
+    
+    Returns:
+        Number of sales deleted
+    """
+    with db_session() as conn:
+        cursor = get_cursor(conn)
+        p = placeholder()
+        
+        # First count how many will be deleted
+        cursor.execute(f'SELECT COUNT(*) FROM sales WHERE sale_date >= {p}', (from_date,))
+        count = cursor.fetchone()[0]
+        
+        # Delete the sales
+        cursor.execute(f'DELETE FROM sales WHERE sale_date >= {p}', (from_date,))
+        
+        invalidate_cache()
+        logger.info(f"Deleted {count} sales from {from_date} onwards")
+        return count
+
+
 def get_sales_by_variant(variant_type: str, start_date: str = None, end_date: str = None) -> list:
     """
     Get all sales for a specific variant type, optionally filtered by date range.
