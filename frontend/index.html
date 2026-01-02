@@ -102,6 +102,14 @@
 
 
 <body>
+    <!-- Loading Overlay - FIRST element in body for immediate render -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div style="text-align: center;">
+            <div class="loading-spinner"></div>
+            <p>Loading market data...</p>
+        </div>
+    </div>
+
     <!-- Animated Background -->
     <div class="bg-gradient"></div>
     <div class="bg-grid"></div>
@@ -309,16 +317,9 @@
     <!-- Toast Notifications -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Loading Overlay - Visible by default, hidden by JS when ready -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div style="text-align: center;">
-            <div class="loading-spinner"></div>
-            <p>Loading market data...</p>
-        </div>
-    </div>
 
     <!-- Custom Scripts -->
-    <script defer src="js/app.js?v=8"></script>
+    <script defer src="js/app.js?v=9"></script>
 </body>
 
 </html>
