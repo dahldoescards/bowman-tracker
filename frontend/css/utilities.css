@@ -230,17 +230,19 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-lg);
-    background: rgba(10, 10, 15, 0.9);
+    background: rgba(10, 10, 15, 0.98);
     backdrop-filter: blur(10px);
     z-index: 9999;
-    opacity: 0;
-    visibility: hidden;
-    transition: all var(--transition-base);
-}
-
-.loading-overlay.visible {
+    /* VISIBLE by default - hidden only when JS adds .hidden class */
     opacity: 1;
     visibility: visible;
+    transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
 }
 
 .loading-spinner {
