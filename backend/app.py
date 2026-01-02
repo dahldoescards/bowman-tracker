@@ -62,7 +62,7 @@ try:
     from prometheus_flask_exporter import PrometheusMetrics
     metrics = PrometheusMetrics(app, group_by='endpoint')
     # Custom metrics
-    metrics.info('app_info', 'Application info', version='1.1.0')
+    metrics.info('app_info', 'Application info', version='1.2.0')
     logger.info("Prometheus metrics enabled at /metrics")
 except ImportError:
     metrics = None
@@ -524,7 +524,7 @@ def health_check():
         'status': 'healthy' if db_healthy else 'degraded',
         'timestamp': datetime.now().isoformat(),
         'database': db_stats,
-        'version': '1.1.0'
+        'version': '1.2.0'
     })
 
 

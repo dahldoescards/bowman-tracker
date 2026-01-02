@@ -16,7 +16,7 @@ class Config:
     
     # Application
     APP_NAME = "Bowman Draft Box Tracker"
-    VERSION = "1.1.0"
+    VERSION = "1.2.0"
     
     # Server
     HOST = os.environ.get('HOST', '127.0.0.1')
