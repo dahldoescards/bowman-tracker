@@ -498,10 +498,13 @@ def refetch_from_date():
             'fetch_stats': fetch_stats
         })
     except Exception as e:
-        logger.error(f"Refetch failed: {e}")
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"Refetch failed: {e}\n{error_traceback}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'traceback': error_traceback
         }), 500
 
 # ============================================================================
