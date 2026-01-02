@@ -9,6 +9,24 @@
  */
 
 // ============================================================================
+// Global Error Handling - Catches all uncaught errors gracefully
+// ============================================================================
+
+window.onerror = function (message, source, lineno, colno, error) {
+    console.error('Uncaught error:', { message, source, lineno, colno, error });
+    // Don't show toast for every error - only critical ones
+    if (message.includes('fetch') || message.includes('network')) {
+        showToast('Connection issue. Retrying...', 'error');
+    }
+    return true; // Prevents default browser error handling
+};
+
+window.addEventListener('unhandledrejection', function (event) {
+    console.error('Unhandled promise rejection:', event.reason);
+    event.preventDefault(); // Prevents console error spam
+});
+
+// ============================================================================
 // Configuration
 // ============================================================================
 const API_BASE = window.location.origin + '/api';
@@ -150,7 +168,27 @@ function showToast(message, type = 'info') {
 // API Functions
 // ============================================================================
 
-async function fetchAPI(endpoint, skipCache = false) {
+const API_TIMEOUT = 10000; // 10 second timeout
+const MAX_RETRIES = 2;
+
+async function fetchWithTimeout(url, timeout = API_TIMEOUT) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error('Request timed out');
+        }
+        throw error;
+    }
+}
+
+async function fetchAPI(endpoint, skipCache = false, retries = MAX_RETRIES) {
     const cacheKey = endpoint;
 
     // Check cache first (unless skipCache is true)
@@ -169,26 +207,50 @@ async function fetchAPI(endpoint, skipCache = false) {
     }
 
     const requestPromise = (async () => {
-        try {
-            const response = await fetch(`${API_BASE}${endpoint}`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
+        let lastError;
 
-            // Cache the response
-            state.cache.set(cacheKey, { data, timestamp: Date.now() });
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}${endpoint}`);
 
-            return data;
-        } catch (error) {
-            console.error(`API Error (${endpoint}):`, error);
-            throw error;
-        } finally {
-            state.pendingRequests.delete(cacheKey);
+                if (!response.ok) {
+                    // Don't retry on client errors (4xx), only server errors (5xx)
+                    if (response.status >= 400 && response.status < 500) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Cache the response
+                state.cache.set(cacheKey, { data, timestamp: Date.now() });
+
+                return data;
+            } catch (error) {
+                lastError = error;
+                console.warn(`API attempt ${attempt + 1}/${retries + 1} failed (${endpoint}):`, error.message);
+
+                // Wait before retrying (exponential backoff)
+                if (attempt < retries) {
+                    await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+                }
+            }
         }
+
+        console.error(`API Error (${endpoint}): All retries failed`, lastError);
+        throw lastError;
     })();
 
     state.pendingRequests.set(cacheKey, requestPromise);
-    return requestPromise;
+
+    try {
+        return await requestPromise;
+    } finally {
+        state.pendingRequests.delete(cacheKey);
+    }
 }
+
 
 // ============================================================================
 // Data Loading
@@ -200,10 +262,32 @@ async function loadSummaryData() {
         if (!data.success) throw new Error('Failed to load summary');
 
         updateSummaryCards(data.summary);
+        return true;
     } catch (error) {
         console.error('Error loading summary:', error);
+        // Show fallback state - don't crash the whole app
+        showSummaryError();
+        return false;
     }
 }
+
+function showSummaryError() {
+    const variants = ['jumbo', 'breakers_delight', 'hobby'];
+    const elementMap = {
+        jumbo: 'jumboPrice',
+        breakers_delight: 'delightPrice',
+        hobby: 'hobbyPrice'
+    };
+
+    variants.forEach(variant => {
+        const priceEl = document.getElementById(elementMap[variant]);
+        if (priceEl) {
+            priceEl.textContent = '--';
+            priceEl.style.opacity = '0.5';
+        }
+    });
+}
+
 
 function updateSummaryCards(summary) {
     const variants = ['jumbo', 'breakers_delight', 'hobby'];

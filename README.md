@@ -11,8 +11,8 @@ A production-ready web application for tracking sales prices of 2025 Bowman Draf
 - **Smart Price Calculation**: Automatically calculates per-box prices from case sales
 - **Duplicate Detection**: Uses eBay product IDs to prevent duplicate entries
 - **ML-Based Filtering**: Trained classifier distinguishes box sales from player card sales
-- **Automated Data Collection**: Hourly fetching via 130point.com with proxy rotation
-- **Stock-Chart Visualizations**: Interactive Chart.js scatter plots with tooltips
+- **Automated Data Collection**: Hourly fetching from eBay sold listings
+- **Stock-Chart Visualizations**: Interactive candlestick-style charts
 - **Modern Premium UI**: Award-winning design with glassmorphism and animations
 
 ## Architecture
@@ -24,7 +24,7 @@ bowman-draft-tracker/
 │   ├── database.py            # SQLite database management
 │   ├── requirements.txt       # Python dependencies
 │   ├── services/
-│   │   ├── data_fetcher.py    # 130point API integration
+│   │   ├── data_fetcher.py    # eBay sales data integration
 │   │   ├── scheduler.py       # Automated hourly fetching
 │   │   └── title_parser.py    # Title parsing & price calculation
 │   └── models/
@@ -292,6 +292,6 @@ MIT License
 
 ## Credits
 
-- Data sourced from [130point.com](https://130point.com)
-- Charts powered by [Chart.js](https://chartjs.org)
+- Data sourced from eBay sold listings
+- Charts powered by [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
 - Design inspired by modern fintech dashboards
