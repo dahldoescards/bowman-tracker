@@ -53,14 +53,35 @@
             align-items: center;
             justify-content: center;
             z-index: 9999;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .2s
+            opacity: 1;
+            pointer-events: auto;
+            transition: opacity .3s ease-out
         }
 
-        .loading-overlay.visible {
-            opacity: 1;
-            pointer-events: auto
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(99, 102, 241, 0.2);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .loading-overlay p {
+            margin-top: 1rem;
+            color: #94a3b8;
+            font-size: 0.875rem
         }
     </style>
 
@@ -288,14 +309,16 @@
     <!-- Toast Notifications -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Loading Overlay -->
+    <!-- Loading Overlay - Visible by default, hidden by JS when ready -->
     <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-spinner"></div>
-        <p>Loading data...</p>
+        <div style="text-align: center;">
+            <div class="loading-spinner"></div>
+            <p>Loading market data...</p>
+        </div>
     </div>
 
     <!-- Custom Scripts -->
-    <script defer src="js/app.js?v=7"></script>
+    <script defer src="js/app.js?v=8"></script>
 </body>
 
 </html>

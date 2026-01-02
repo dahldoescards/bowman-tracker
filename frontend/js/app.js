@@ -144,10 +144,12 @@ function formatEbayUrl(url) {
 
 function showLoading(show = true) {
     const overlay = document.getElementById('loadingOverlay');
+    if (!overlay) return;
+
     if (show) {
-        overlay.classList.add('visible');
+        overlay.classList.remove('hidden');
     } else {
-        overlay.classList.remove('visible');
+        overlay.classList.add('hidden');
     }
 }
 
