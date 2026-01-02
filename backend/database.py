@@ -1,20 +1,44 @@
 """
 Database schema and connection management for Bowman Draft Box Tracker.
 Stores historical sales with duplicate prevention using eBay product ID from URL.
-Optimized for production with connection pooling and caching.
+
+Supports both SQLite (development) and PostgreSQL (production).
+Set DATABASE_URL environment variable to use PostgreSQL.
 """
 
-import sqlite3
 import os
+import sys
+import signal
+import atexit
 import threading
+import logging
 from datetime import datetime
 from contextlib import contextmanager
-from functools import lru_cache
 import time
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'sales_history.db')
+# Configure logging
+logger = logging.getLogger(__name__)
 
-# Thread-local storage for connections
+# Check for PostgreSQL (production) vs SQLite (development)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+USE_POSTGRES = DATABASE_URL is not None and DATABASE_URL.startswith('postgres')
+
+# Connection pool for PostgreSQL
+_pg_pool = None
+_pool_lock = threading.Lock()
+
+if USE_POSTGRES:
+    import psycopg2
+    from psycopg2 import pool
+    from psycopg2.extras import RealDictCursor
+    # Fix for Railway/Heroku postgres:// vs postgresql://
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+else:
+    import sqlite3
+    DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'sales_history.db')
+
+# Thread-local storage for SQLite connections
 _local = threading.local()
 
 # Simple in-memory cache for summary data
@@ -25,26 +49,125 @@ _cache = {
 _cache_lock = threading.Lock()
 CACHE_TTL = 60  # seconds
 
+# Track if we're shutting down
+_shutting_down = False
+
+
+def init_connection_pool():
+    """Initialize PostgreSQL connection pool."""
+    global _pg_pool
+    if USE_POSTGRES and _pg_pool is None:
+        with _pool_lock:
+            if _pg_pool is None:
+                try:
+                    _pg_pool = pool.ThreadedConnectionPool(
+                        minconn=2,
+                        maxconn=10,
+                        dsn=DATABASE_URL
+                    )
+                    logger.info("PostgreSQL connection pool initialized")
+                except Exception as e:
+                    logger.error(f"Failed to create connection pool: {e}")
+                    raise
+
 
 def get_db_connection():
-    """Get a thread-local database connection with optimizations."""
-    if not hasattr(_local, 'connection') or _local.connection is None:
-        conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        # Enable WAL mode for better concurrent read/write performance
-        conn.execute('PRAGMA journal_mode=WAL')
-        conn.execute('PRAGMA synchronous=NORMAL')
-        conn.execute('PRAGMA cache_size=10000')  # ~40MB cache
-        conn.execute('PRAGMA temp_store=MEMORY')
-        _local.connection = conn
-    return _local.connection
+    """Get a database connection (from pool for PostgreSQL, thread-local for SQLite)."""
+    if _shutting_down:
+        raise RuntimeError("Database is shutting down")
+    
+    if USE_POSTGRES:
+        if _pg_pool is None:
+            init_connection_pool()
+        return _pg_pool.getconn()
+    else:
+        if not hasattr(_local, 'connection') or _local.connection is None:
+            conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            # Enable WAL mode for better concurrent read/write performance
+            conn.execute('PRAGMA journal_mode=WAL')
+            conn.execute('PRAGMA synchronous=NORMAL')
+            conn.execute('PRAGMA cache_size=10000')
+            conn.execute('PRAGMA temp_store=MEMORY')
+            _local.connection = conn
+        return _local.connection
+
+
+def return_connection(conn):
+    """Return a PostgreSQL connection to the pool."""
+    if USE_POSTGRES and _pg_pool is not None and conn is not None:
+        try:
+            _pg_pool.putconn(conn)
+        except Exception as e:
+            logger.warning(f"Error returning connection to pool: {e}")
+
+
+
+def get_cursor(conn):
+    """Get appropriate cursor for the database type."""
+    if USE_POSTGRES:
+        return conn.cursor(cursor_factory=RealDictCursor)
+    return conn.cursor()
+
+
+def placeholder(index=None):
+    """Return appropriate placeholder for SQL queries."""
+    if USE_POSTGRES:
+        return '%s'
+    return '?'
+
+
+def placeholders(count):
+    """Return multiple placeholders for SQL queries."""
+    p = '%s' if USE_POSTGRES else '?'
+    return ', '.join([p] * count)
+
 
 
 def close_connection():
-    """Close thread-local connection."""
+    """Close thread-local SQLite connection."""
     if hasattr(_local, 'connection') and _local.connection:
         _local.connection.close()
         _local.connection = None
+
+
+def shutdown():
+    """Graceful shutdown - close all connections."""
+    global _shutting_down, _pg_pool
+    _shutting_down = True
+    logger.info("Shutting down database connections...")
+    
+    # Close PostgreSQL pool
+    if USE_POSTGRES and _pg_pool is not None:
+        try:
+            _pg_pool.closeall()
+            logger.info("PostgreSQL connection pool closed")
+        except Exception as e:
+            logger.error(f"Error closing connection pool: {e}")
+    
+    # Close SQLite connection
+    close_connection()
+    logger.info("Database shutdown complete")
+
+
+# Register shutdown handlers
+atexit.register(shutdown)
+
+
+def _signal_handler(signum, frame):
+    """Handle SIGTERM/SIGINT for graceful shutdown."""
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    shutdown()
+    sys.exit(0)
+
+
+# Register signal handlers (only in main thread)
+try:
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+except ValueError:
+    # Signal only works in main thread
+    pass
 
 
 @contextmanager
@@ -57,6 +180,10 @@ def db_session():
     except Exception as e:
         conn.rollback()
         raise e
+    finally:
+        # Return PostgreSQL connections to pool
+        if USE_POSTGRES:
+            return_connection(conn)
 
 
 def invalidate_cache(cache_key=None):
@@ -72,30 +199,74 @@ def invalidate_cache(cache_key=None):
 def init_database():
     """Initialize the database schema."""
     with db_session() as conn:
-        cursor = conn.cursor()
+        cursor = get_cursor(conn)
         
-        # Main sales table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS sales (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unique_id TEXT UNIQUE NOT NULL,
-                source TEXT NOT NULL DEFAULT 'ebay',
-                source_url TEXT NOT NULL,
-                ebay_item_id TEXT,
-                title TEXT NOT NULL,
-                sale_price REAL NOT NULL,
-                box_count INTEGER NOT NULL DEFAULT 1,
-                per_box_price REAL NOT NULL,
-                variant_type TEXT NOT NULL,
-                sale_date TEXT NOT NULL,
-                sale_timestamp INTEGER NOT NULL,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                
-                CHECK(variant_type IN ('jumbo', 'breakers_delight', 'hobby'))
-            )
-        ''')
+        if USE_POSTGRES:
+            # PostgreSQL schema
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS sales (
+                    id SERIAL PRIMARY KEY,
+                    unique_id TEXT UNIQUE NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'ebay',
+                    source_url TEXT NOT NULL,
+                    ebay_item_id TEXT,
+                    title TEXT NOT NULL,
+                    sale_price REAL NOT NULL,
+                    box_count INTEGER NOT NULL DEFAULT 1,
+                    per_box_price REAL NOT NULL,
+                    variant_type TEXT NOT NULL CHECK(variant_type IN ('jumbo', 'breakers_delight', 'hobby')),
+                    sale_date TEXT NOT NULL,
+                    sale_timestamp INTEGER NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS fetch_history (
+                    id SERIAL PRIMARY KEY,
+                    fetch_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    query_term TEXT NOT NULL,
+                    total_results INTEGER NOT NULL,
+                    new_sales_added INTEGER NOT NULL,
+                    duplicates_skipped INTEGER NOT NULL,
+                    errors TEXT
+                )
+            ''')
+        else:
+            # SQLite schema
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS sales (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    unique_id TEXT UNIQUE NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'ebay',
+                    source_url TEXT NOT NULL,
+                    ebay_item_id TEXT,
+                    title TEXT NOT NULL,
+                    sale_price REAL NOT NULL,
+                    box_count INTEGER NOT NULL DEFAULT 1,
+                    per_box_price REAL NOT NULL,
+                    variant_type TEXT NOT NULL,
+                    sale_date TEXT NOT NULL,
+                    sale_timestamp INTEGER NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    
+                    CHECK(variant_type IN ('jumbo', 'breakers_delight', 'hobby'))
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS fetch_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fetch_timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    query_term TEXT NOT NULL,
+                    total_results INTEGER NOT NULL,
+                    new_sales_added INTEGER NOT NULL,
+                    duplicates_skipped INTEGER NOT NULL,
+                    errors TEXT
+                )
+            ''')
         
-        # Create indexes for efficient querying
+        # Create indexes (same syntax for both)
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_sales_variant_type 
             ON sales(variant_type)
@@ -116,26 +287,14 @@ def init_database():
             ON sales(ebay_item_id)
         ''')
         
-        # Fetch history table for tracking data collection runs
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS fetch_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                fetch_timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                query_term TEXT NOT NULL,
-                total_results INTEGER NOT NULL,
-                new_sales_added INTEGER NOT NULL,
-                duplicates_skipped INTEGER NOT NULL,
-                errors TEXT
-            )
-        ''')
-        
         print("Database initialized successfully.")
 
 def check_duplicate(unique_id: str) -> bool:
     """Check if a sale with this unique_id already exists."""
     with db_session() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT 1 FROM sales WHERE unique_id = ?', (unique_id,))
+        cursor = get_cursor(conn)
+        p = placeholder()
+        cursor.execute(f'SELECT 1 FROM sales WHERE unique_id = {p}', (unique_id,))
         return cursor.fetchone() is not None
 
 def insert_sale(sale_data: dict) -> bool:
@@ -157,13 +316,14 @@ def insert_sale(sale_data: dict) -> bool:
     """
     try:
         with db_session() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
+            cursor = get_cursor(conn)
+            p = placeholders(12)
+            cursor.execute(f'''
                 INSERT INTO sales (
                     unique_id, source, source_url, ebay_item_id, title,
                     sale_price, box_count, per_box_price, variant_type,
                     sale_date, sale_timestamp, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES ({p})
             ''', (
                 sale_data['unique_id'],
                 sale_data.get('source', 'ebay'),
@@ -178,10 +338,14 @@ def insert_sale(sale_data: dict) -> bool:
                 sale_data['sale_timestamp'],
                 datetime.now().isoformat()
             ))
+            invalidate_cache()  # Clear summary cache on new inserts
             return True
-    except sqlite3.IntegrityError:
-        # Duplicate unique_id
-        return False
+    except Exception as e:
+        # Handle both SQLite and PostgreSQL integrity errors
+        if 'unique' in str(e).lower() or 'duplicate' in str(e).lower():
+            return False
+        raise
+
 
 def get_sales_by_variant(variant_type: str, start_date: str = None, end_date: str = None) -> list:
     """
@@ -189,17 +353,18 @@ def get_sales_by_variant(variant_type: str, start_date: str = None, end_date: st
     Returns list of sale records ordered by sale_timestamp.
     """
     with db_session() as conn:
-        cursor = conn.cursor()
+        cursor = get_cursor(conn)
+        p = placeholder()
         
-        query = 'SELECT * FROM sales WHERE variant_type = ?'
+        query = f'SELECT * FROM sales WHERE variant_type = {p}'
         params = [variant_type]
         
         if start_date:
-            query += ' AND sale_date >= ?'
+            query += f' AND sale_date >= {p}'
             params.append(start_date)
         
         if end_date:
-            query += ' AND sale_date <= ?'
+            query += f' AND sale_date <= {p}'
             params.append(end_date)
         
         query += ' ORDER BY sale_timestamp ASC'
@@ -210,17 +375,18 @@ def get_sales_by_variant(variant_type: str, start_date: str = None, end_date: st
 def get_all_sales(start_date: str = None, end_date: str = None) -> list:
     """Get all sales, optionally filtered by date range."""
     with db_session() as conn:
-        cursor = conn.cursor()
+        cursor = get_cursor(conn)
+        p = placeholder()
         
         query = 'SELECT * FROM sales WHERE 1=1'
         params = []
         
         if start_date:
-            query += ' AND sale_date >= ?'
+            query += f' AND sale_date >= {p}'
             params.append(start_date)
         
         if end_date:
-            query += ' AND sale_date <= ?'
+            query += f' AND sale_date <= {p}'
             params.append(end_date)
         
         query += ' ORDER BY sale_timestamp ASC'
@@ -239,7 +405,7 @@ def get_sales_summary() -> dict:
             return cache_entry['data']
     
     with db_session() as conn:
-        cursor = conn.cursor()
+        cursor = get_cursor(conn)
         
         cursor.execute('''
             SELECT 
@@ -280,22 +446,78 @@ def get_sales_summary() -> dict:
 def record_fetch(query_term: str, total_results: int, new_sales: int, duplicates: int, errors: str = None):
     """Record a data fetch operation for monitoring."""
     with db_session() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
+        cursor = get_cursor(conn)
+        p = placeholders(5)
+        cursor.execute(f'''
             INSERT INTO fetch_history (query_term, total_results, new_sales_added, duplicates_skipped, errors)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES ({p})
         ''', (query_term, total_results, new_sales, duplicates, errors))
 
 def get_latest_fetch_stats() -> dict:
     """Get the most recent fetch statistics."""
     with db_session() as conn:
-        cursor = conn.cursor()
+        cursor = get_cursor(conn)
         cursor.execute('''
             SELECT * FROM fetch_history 
             ORDER BY fetch_timestamp DESC 
             LIMIT 10
         ''')
         return [dict(row) for row in cursor.fetchall()]
+
+
+def cleanup_old_data(retention_days: int = 180):
+    """
+    Remove sales and fetch history older than retention_days.
+    Default is 180 days (6 months).
+    
+    Returns dict with counts of deleted records.
+    """
+    from datetime import datetime, timedelta
+    
+    cutoff_date = (datetime.now() - timedelta(days=retention_days)).strftime('%Y-%m-%d')
+    deleted = {'sales': 0, 'fetch_history': 0}
+    
+    with db_session() as conn:
+        cursor = get_cursor(conn)
+        p = placeholder()
+        
+        # Delete old sales
+        cursor.execute(f'DELETE FROM sales WHERE sale_date < {p}', (cutoff_date,))
+        deleted['sales'] = cursor.rowcount
+        
+        # Delete old fetch history
+        cursor.execute(f'DELETE FROM fetch_history WHERE fetch_timestamp < {p}', (cutoff_date,))
+        deleted['fetch_history'] = cursor.rowcount
+        
+        if deleted['sales'] > 0 or deleted['fetch_history'] > 0:
+            invalidate_cache()
+            logger.info(f"Data retention: deleted {deleted['sales']} sales, {deleted['fetch_history']} fetch records older than {cutoff_date}")
+    
+    return deleted
+
+
+def get_database_stats() -> dict:
+    """Get database statistics for monitoring."""
+    with db_session() as conn:
+        cursor = get_cursor(conn)
+        
+        cursor.execute('SELECT COUNT(*) as count FROM sales')
+        sales_count = cursor.fetchone()['count']
+        
+        cursor.execute('SELECT COUNT(*) as count FROM fetch_history')
+        fetch_count = cursor.fetchone()['count']
+        
+        cursor.execute('SELECT MIN(sale_date) as oldest, MAX(sale_date) as newest FROM sales')
+        date_range = cursor.fetchone()
+        
+        return {
+            'total_sales': sales_count,
+            'total_fetches': fetch_count,
+            'oldest_sale': date_range['oldest'],
+            'newest_sale': date_range['newest'],
+            'database_type': 'PostgreSQL' if USE_POSTGRES else 'SQLite'
+        }
+
 
 if __name__ == '__main__':
     init_database()

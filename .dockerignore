@@ -1,0 +1,61 @@
+# Docker build ignore file
+# Reduces build context size and prevents leaking secrets
+
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+
+# Virtual environments
+.env
+.env.*
+.venv
+venv
+ENV
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Documentation
+README.md
+*.md
+
+# Secrets
+secrets.json
+proxies.txt
+
+# Logs
+*.log
+logs
+
+# Build outputs
+dist
+build
+node_modules
+
+# Test files
+tests
+test
+*_test.py
+test_*.py
+
+# Development configs
+docker-compose.yml
+.env.example

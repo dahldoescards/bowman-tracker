@@ -1,6 +1,13 @@
 # Render Deployment Configuration
 # Connect your GitHub repo at render.com
 
+databases:
+  # PostgreSQL database
+  - name: bowman-db
+    plan: free
+    databaseName: bowman_tracker
+    user: bowman
+
 services:
   # Main web service
   - type: web
@@ -15,6 +22,10 @@ services:
         value: production
       - key: USE_PROXIES
         value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bowman-db
+          property: connectionString
     healthCheckPath: /api/health
     autoDeploy: true
 
@@ -30,3 +41,7 @@ services:
         value: 3.11.0
       - key: USE_PROXIES
         value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bowman-db
+          property: connectionString

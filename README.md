@@ -191,43 +191,72 @@ python services/data_fetcher.py
 
 ## Production Deployment
 
-### Option 1: Railway (Recommended)
+### 🚀 Production Checklist
 
-1. **Push to GitHub**
-2. **Connect Railway to your repo**: [railway.app](https://railway.app)
-3. **Add environment variables**:
-   ```
-   USE_PROXIES=false
-   FLASK_ENV=production
-   ```
-4. **Add a cron job** for hourly fetching:
-   - Create a new service → Cron
-   - Schedule: `0 * * * *`
-   - Command: `cd backend && python -c "from services.scheduler import run_single_fetch; run_single_fetch()"`
+Before deploying to production, ensure:
 
-### Option 2: Render
+- [ ] `SECRET_KEY` environment variable is set to a secure random string
+- [ ] `FLASK_ENV=production` is set
+- [ ] `DATABASE_URL` is set (for PostgreSQL) or database is persistent
+- [ ] `USE_PROXIES=false` (unless you have working proxies)
+- [ ] Cron job is configured for hourly data fetching
+- [ ] Health check endpoint `/api/health` is monitored
+
+### Database Options
+
+| Environment | Database | Configuration |
+|-------------|----------|---------------|
+| Development | SQLite | Automatic (no config needed) |
+| Production | PostgreSQL | Set `DATABASE_URL` env var |
+
+The app automatically detects which database to use based on the `DATABASE_URL` environment variable.
+
+### Option 1: Render (Recommended)
 
 1. **Push to GitHub**
 2. **Connect Render to your repo**: [render.com](https://render.com)
-3. **Use the `render.yaml`** blueprint (auto-configures web + cron job)
-4. **Environment variables are set automatically**
+3. **Use the `render.yaml`** blueprint (auto-configures web + cron + PostgreSQL)
+4. **Add environment variables**:
+   ```
+   SECRET_KEY=your-secure-random-string-here
+   USE_PROXIES=false
+   FLASK_ENV=production
+   ```
+
+### Option 2: Railway
+
+1. **Push to GitHub**
+2. **Connect Railway to your repo**: [railway.app](https://railway.app)
+3. **Add PostgreSQL database** from Railway marketplace
+4. **Add environment variables**:
+   ```
+   SECRET_KEY=your-secure-random-string-here
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   USE_PROXIES=false
+   FLASK_ENV=production
+   ```
+5. **Add a cron job** for hourly fetching:
+   - Create a new service → Cron
+   - Schedule: `0 * * * *`
+   - Command: `cd backend && python -c "from services.scheduler import run_single_fetch; run_single_fetch()"`
 
 ### Option 3: Local Production with Gunicorn
 
 ```bash
 pip install gunicorn
 cd backend
-gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 app:app
+SECRET_KEY=your-key FLASK_ENV=production gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 app:app
 ```
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `USE_PROXIES` | `true` | Set to `false` for cloud deployment |
-| `FLASK_ENV` | `development` | Set to `production` for prod |
-| `PORT` | `5000` | Server port |
-| `DATABASE_PATH` | `./sales_history.db` | SQLite database location |
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `SECRET_KEY` | - | ✅ Production | Secure random string for sessions |
+| `DATABASE_URL` | - | ⚠️ Recommended | PostgreSQL connection string |
+| `FLASK_ENV` | `development` | ✅ Production | Set to `production` |
+| `USE_PROXIES` | `true` | - | Set to `false` for cloud |
+| `PORT` | `5000` | - | Server port |
 
 ### Automatic Data Fetching
 
@@ -237,6 +266,7 @@ In production, set up a cron job to run hourly:
 # Runs every hour at minute 0
 0 * * * * cd /path/to/backend && python -c "from services.scheduler import run_single_fetch; run_single_fetch()"
 ```
+
 
 ## Troubleshooting
 

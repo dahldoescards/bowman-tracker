@@ -7,7 +7,8 @@ Provides REST API endpoints for:
 - Manual fetch triggers
 - Scheduler status and control
 
-Production-ready with gzip compression, rate limiting, and security headers.
+Production-ready with gzip compression, rate limiting, security headers,
+Sentry error monitoring, and Prometheus metrics.
 """
 
 import os
@@ -40,10 +41,38 @@ from services.scheduler import get_scheduler, run_single_fetch
 # Initialize Flask app
 app = Flask(__name__, static_folder='../frontend', static_url_path='')
 
+# Initialize Sentry (optional - only if SENTRY_DSN is set)
+SENTRY_DSN = os.environ.get('SENTRY_DSN')
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[FlaskIntegration()],
+            traces_sample_rate=0.1,  # 10% of transactions for performance
+            environment=os.environ.get('FLASK_ENV', 'development')
+        )
+        logger.info("Sentry error monitoring initialized")
+    except ImportError:
+        logger.warning("sentry-sdk not installed, error monitoring disabled")
+
+# Initialize Prometheus metrics (optional)
+try:
+    from prometheus_flask_exporter import PrometheusMetrics
+    metrics = PrometheusMetrics(app, group_by='endpoint')
+    # Custom metrics
+    metrics.info('app_info', 'Application info', version='1.1.0')
+    logger.info("Prometheus metrics enabled at /metrics")
+except ImportError:
+    metrics = None
+    logger.info("prometheus-flask-exporter not installed, metrics disabled")
+
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX_REQUESTS = 60  # requests per window
 _rate_limit_data = defaultdict(list)
+
 
 
 def rate_limit(f):
@@ -349,19 +378,29 @@ def trigger_fetch():
             'error': str(e)
         }), 500
 
-
 # ============================================================================
 # API Routes - Health & Info
 # ============================================================================
 
 @app.route('/api/health')
 def health_check():
-    """Health check endpoint."""
+    """Health check endpoint with database stats."""
+    try:
+        from database import get_database_stats
+        db_stats = get_database_stats()
+        db_healthy = True
+    except Exception as e:
+        db_stats = {'error': str(e)}
+        db_healthy = False
+    
     return jsonify({
         'success': True,
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat()
+        'status': 'healthy' if db_healthy else 'degraded',
+        'timestamp': datetime.now().isoformat(),
+        'database': db_stats,
+        'version': '1.1.0'
     })
+
 
 
 @app.route('/api/info')

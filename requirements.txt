@@ -6,6 +6,8 @@ Flask>=2.3.0
 
 # Database
 # SQLite3 is built-in to Python
+# PostgreSQL driver for production
+psycopg2-binary>=2.9.0
 
 # HTTP Client for data fetching
 requests>=2.31.0
@@ -23,3 +25,9 @@ gunicorn>=21.0.0
 
 # Utilities
 python-dotenv>=1.0.0
+
+# Error Monitoring (optional - set SENTRY_DSN to enable)
+sentry-sdk[flask]>=1.32.0
+
+# Metrics (optional - exposes /metrics endpoint)
+prometheus-flask-exporter>=0.23.0

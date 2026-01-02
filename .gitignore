@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.env
+.venv
+venv/
+ENV/
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Node (if using build tools)
+node_modules/
+npm-debug.log
+
+# Production builds
+*.min.js
+*.min.css
+
+# Secrets
+.env
+.env.local
+.env.production
+!.env.example
+secrets.json
+proxies.txt
+
+# ML Models (large files - should use Git LFS)
+# Uncomment if you want to exclude:
+# *.pkl
+
+# Temporary files
+tmp/
+temp/
+*.tmp
