@@ -163,12 +163,27 @@ def validate_variant(variant):
 init_database()
 
 # Auto-start scheduler if configured (for production)
+# Use file-based lock to ensure only ONE worker starts the scheduler
 AUTO_START_SCHEDULER = os.environ.get('AUTO_START_SCHEDULER', 'false').lower() == 'true'
+SCHEDULER_LOCK_FILE = '/tmp/bowman_scheduler.lock'
+
 if AUTO_START_SCHEDULER:
-    logger.info("AUTO_START_SCHEDULER enabled, starting background data fetcher...")
-    scheduler = get_scheduler()
-    scheduler.start()
-    logger.info(f"Scheduler started, will fetch data every {scheduler.interval} seconds")
+    import fcntl
+    try:
+        # Try to acquire exclusive lock
+        lock_file = open(SCHEDULER_LOCK_FILE, 'w')
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        
+        # Lock acquired - this worker runs the scheduler
+        logger.info("AUTO_START_SCHEDULER enabled, starting background data fetcher...")
+        scheduler = get_scheduler()
+        scheduler.start()
+        logger.info(f"Scheduler started, will fetch data every {scheduler.interval} seconds")
+        
+        # Keep lock file open to maintain the lock
+    except (IOError, OSError):
+        # Another worker already has the lock
+        logger.info("Scheduler already running in another worker, skipping...")
 
 
 # ============================================================================

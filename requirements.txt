@@ -17,7 +17,8 @@ beautifulsoup4>=4.12.0
 lxml>=4.9.0
 
 # Machine Learning (for box sale classification)
-scikit-learn>=1.3.0
+# Pinned to match trained classifier model version
+scikit-learn==1.7.2
 joblib>=1.3.0
 
 # Production WSGI Server
