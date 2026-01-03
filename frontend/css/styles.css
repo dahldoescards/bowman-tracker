@@ -60,14 +60,11 @@
     --color-hobby-glow: rgba(16, 185, 129, 0.15);
 }
 
-/* Theme toggle button - positioned bottom-right to avoid header overlap */
+/* Theme toggle button - inline in header */
 .theme-toggle {
-    position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    z-index: 1000;
-    width: 44px;
-    height: 44px;
+    position: relative;
+    width: 40px;
+    height: 40px;
     border-radius: var(--radius-full);
     border: 1px solid var(--border-color);
     background: var(--color-bg-card);
@@ -76,8 +73,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     transition: transform var(--transition-base), box-shadow var(--transition-base);
+    margin-left: 0.75rem;
 }
 
 .theme-toggle:hover {
