@@ -21,6 +21,33 @@
 
     <title>2025 Bowman Draft Box Tracker | Live Price Tracking</title>
 
+    <!-- SEO Meta Tags -->
+    <meta name="description"
+        content="Track live prices for 2025 Bowman Draft Baseball hobby boxes. Real-time market data for Jumbo, Breaker's Delight, and Hobby box variants.">
+    <meta name="keywords" content="Bowman Draft, 2025, baseball cards, hobby box, price tracker, Topps">
+
+    <!-- OpenGraph / Social Sharing -->
+    <meta property="og:title" content="2025 Bowman Draft Box Tracker">
+    <meta property="og:description"
+        content="Live price tracking for 2025 Bowman Draft Baseball boxes. Monitor Jumbo, Breaker's Delight, and Hobby box prices in real-time.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bowmandrafttracker.com">
+    <meta property="og:image" content="https://bowmandrafttracker.com/icons/icon-512.png">
+    <meta property="og:site_name" content="Bowman Draft Tracker">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="2025 Bowman Draft Box Tracker">
+    <meta name="twitter:description" content="Live price tracking for 2025 Bowman Draft Baseball boxes.">
+    <meta name="twitter:image" content="https://bowmandrafttracker.com/icons/icon-512.png">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
     <!-- Favicon - Professional chart icon -->
     <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2'><path d='M3 3v18h18'/><path d='M18 9l-5 5-4-4-6 6'/></svg>">
@@ -95,9 +122,9 @@
         src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 
     <!-- Custom Styles - with cache-busting version -->
-    <link rel="stylesheet" href="css/styles.css?v=2">
-    <link rel="stylesheet" href="css/components.css?v=2">
-    <link rel="stylesheet" href="css/utilities.css?v=2">
+    <link rel="stylesheet" href="css/styles.css?v=3">
+    <link rel="stylesheet" href="css/components.css?v=3">
+    <link rel="stylesheet" href="css/utilities.css?v=3">
 </head>
 
 
@@ -109,6 +136,12 @@
             <p>Loading market data...</p>
         </div>
     </div>
+
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">
+        <span class="sun-icon">☀️</span>
+        <span class="moon-icon">🌙</span>
+    </button>
 
     <!-- Animated Background -->
     <div class="bg-gradient"></div>
@@ -319,7 +352,7 @@
 
 
     <!-- Custom Scripts -->
-    <script defer src="js/app.js?v=9"></script>
+    <script defer src="js/app.js?v=10"></script>
 </body>
 
 </html>

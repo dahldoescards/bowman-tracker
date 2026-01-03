@@ -62,16 +62,36 @@ try:
     from prometheus_flask_exporter import PrometheusMetrics
     metrics = PrometheusMetrics(app, group_by='endpoint')
     # Custom metrics
-    metrics.info('app_info', 'Application info', version='1.2.0')
+    metrics.info('app_info', 'Application info', version='1.3.0')
     logger.info("Prometheus metrics enabled at /metrics")
 except ImportError:
     metrics = None
     logger.info("prometheus-flask-exporter not installed, metrics disabled")
 
+
+# Custom error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    """Custom 404 error page."""
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': 'Endpoint not found'}), 404
+    return send_from_directory(FRONTEND_DIR, '404.html'), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Custom 500 error page."""
+    logger.error(f"Internal server error: {error}")
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+    return send_from_directory(FRONTEND_DIR, '500.html'), 500
+
+
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX_REQUESTS = 60  # requests per window
 _rate_limit_data = defaultdict(list)
+
 
 
 
@@ -254,6 +274,13 @@ if AUTO_START_SCHEDULER:
 def serve_frontend():
     """Serve the main frontend page."""
     return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.route('/admin')
+def serve_admin():
+    """Serve the admin dashboard."""
+    return send_from_directory(app.static_folder, 'admin.html')
+
 
 @app.route('/<path:path>')
 def serve_static(path):
@@ -499,17 +526,73 @@ def refetch_from_date():
         })
     except Exception as e:
         import traceback
-        error_traceback = traceback.format_exc()
-        logger.error(f"Refetch failed: {e}\n{error_traceback}")
+        logger.error(f"Refetch failed: {e}\n{traceback.format_exc()}")
         return jsonify({
             'success': False,
-            'error': str(e),
-            'traceback': error_traceback
+            'error': str(e)
         }), 500
+
+
+@app.route('/api/sales/<sale_id>', methods=['PATCH'])
+def update_sale(sale_id):
+    """Manually correct a sale record. Requires secret key."""
+    provided_key = request.headers.get('X-Admin-Key') or request.json.get('key')
+    expected_key = os.environ.get('SECRET_KEY', '')
+    
+    if not expected_key or provided_key != expected_key:
+        return jsonify({
+            'success': False,
+            'error': 'Invalid or missing admin key'
+        }), 403
+    
+    updates = request.json.get('updates', {})
+    allowed_fields = ['box_count', 'per_box_price', 'variant_type']
+    
+    # Filter to only allowed fields
+    filtered_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+    
+    if not filtered_updates:
+        return jsonify({
+            'success': False,
+            'error': f'No valid fields to update. Allowed: {allowed_fields}'
+        }), 400
+    
+    try:
+        from database import update_sale_record, get_sale_by_id
+        
+        # If box_count changes, recalculate per_box_price
+        if 'box_count' in filtered_updates:
+            sale = get_sale_by_id(sale_id)
+            if sale:
+                new_box_count = filtered_updates['box_count']
+                filtered_updates['per_box_price'] = round(sale['sale_price'] / new_box_count, 2)
+        
+        updated = update_sale_record(sale_id, filtered_updates)
+        
+        if updated:
+            return jsonify({
+                'success': True,
+                'message': f'Sale {sale_id} updated',
+                'updates': filtered_updates
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Sale {sale_id} not found'
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Sale update failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 # ============================================================================
 # API Routes - Health & Info
 # ============================================================================
+
 
 @app.route('/api/health')
 def health_check():
@@ -527,7 +610,7 @@ def health_check():
         'status': 'healthy' if db_healthy else 'degraded',
         'timestamp': datetime.now().isoformat(),
         'database': db_stats,
-        'version': '1.2.0'
+        'version': '1.3.0'
     })
 
 

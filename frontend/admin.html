@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Bowman Draft Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #0a0a0f;
+            --color-card: #12121a;
+            --color-border: rgba(255, 255, 255, 0.1);
+            --color-primary: #6366f1;
+            --color-success: #22c55e;
+            --color-warning: #f59e0b;
+            --color-danger: #ef4444;
+            --color-text: #f8fafc;
+            --color-text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--color-text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .card h2 {
+            font-size: 1rem;
+            color: var(--color-text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .stat {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            color: var(--color-text-muted);
+            font-size: 0.875rem;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-healthy {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--color-success);
+        }
+
+        .status-running {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--color-primary);
+        }
+
+        .status-stopped {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--color-danger);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            margin: 0.25rem;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5558e3;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: var(--color-danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: var(--color-success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .actions {
+            margin-top: 1rem;
+        }
+
+        .log-output {
+            background: #0a0a0f;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+
+        .log-entry {
+            margin: 0.25rem 0;
+            color: var(--color-text-muted);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--color-border);
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-family: inherit;
+        }
+
+        .back-link {
+            color: var(--color-primary);
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            display: none;
+        }
+
+        #toast.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        <h1>Admin Dashboard</h1>
+        <p class="subtitle">Manage your Bowman Draft Tracker instance</p>
+
+        <div class="grid">
+            <!-- Database Stats -->
+            <div class="card">
+                <h2>📊 Database</h2>
+                <div id="dbStats">
+                    <div class="stat" id="totalSales">--</div>
+                    <div class="stat-label">Total Sales</div>
+                    <div style="margin-top: 1rem; font-size: 0.875rem;">
+                        <div>Type: <span id="dbType">--</span></div>
+                        <div>Newest: <span id="newestSale">--</span></div>
+                        <div>Oldest: <span id="oldestSale">--</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scheduler Status -->
+            <div class="card">
+                <h2>⏰ Scheduler</h2>
+                <div>
+                    Status: <span id="schedulerStatus" class="status status-stopped">Unknown</span>
+                </div>
+                <div style="margin-top: 1rem; font-size: 0.875rem;">
+                    <div>Last Fetch: <span id="lastFetch">--</span></div>
+                    <div>Next Fetch: <span id="nextFetch">--</span></div>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-success" onclick="startScheduler()">Start</button>
+                    <button class="btn btn-danger" onclick="stopScheduler()">Stop</button>
+                </div>
+            </div>
+
+            <!-- Manual Fetch -->
+            <div class="card">
+                <h2>🔄 Manual Fetch</h2>
+                <p style="color: var(--color-text-muted); font-size: 0.875rem;">Trigger a manual data fetch from the
+                    source.</p>
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="triggerFetch()">Fetch Now</button>
+                </div>
+                <div id="fetchLog" class="log-output" style="display: none;"></div>
+            </div>
+
+            <!-- Refetch Data -->
+            <div class="card">
+                <h2>🗑️ Refetch Data</h2>
+                <p style="color: var(--color-text-muted); font-size: 0.875rem;">Delete sales from a date and re-fetch.
+                    Use with caution!</p>
+                <div class="input-group">
+                    <input type="date" id="refetchDate" placeholder="YYYY-MM-DD">
+                    <button class="btn btn-danger" onclick="refetchData()">Refetch</button>
+                </div>
+            </div>
+
+            <!-- API Health -->
+            <div class="card">
+                <h2>💚 API Health</h2>
+                <div>
+                    Status: <span id="apiStatus" class="status status-healthy">Checking...</span>
+                </div>
+                <div style="margin-top: 1rem; font-size: 0.875rem;">
+                    <div>Version: <span id="apiVersion">--</span></div>
+                    <div>Uptime: <span id="apiUptime">--</span></div>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="checkHealth()">Refresh</button>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="card">
+                <h2>🔗 Quick Links</h2>
+                <div class="actions">
+                    <a href="/api/health" target="_blank" class="btn btn-primary">Health API</a>
+                    <a href="/api/summary" target="_blank" class="btn btn-primary">Summary API</a>
+                    <a href="/api/scheduler/status" target="_blank" class="btn btn-primary">Scheduler API</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        const API_BASE = '/api';
+        let adminKey = localStorage.getItem('adminKey') || '';
+
+        // Prompt for admin key if not set
+        if (!adminKey) {
+            adminKey = prompt('Enter admin key (SECRET_KEY):');
+            if (adminKey) localStorage.setItem('adminKey', adminKey);
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.borderColor = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#6366f1';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Admin-Key': adminKey
+                }
+            };
+            if (body) options.body = JSON.stringify(body);
+
+            const res = await fetch(API_BASE + endpoint, options);
+            return res.json();
+        }
+
+        async function checkHealth() {
+            try {
+                const data = await apiCall('/health');
+                if (data.success) {
+                    document.getElementById('apiStatus').textContent = data.status;
+                    document.getElementById('apiStatus').className = 'status status-healthy';
+                    document.getElementById('apiVersion').textContent = data.version;
+                    document.getElementById('totalSales').textContent = data.database?.total_sales || '--';
+                    document.getElementById('dbType').textContent = data.database?.database_type || '--';
+                    document.getElementById('newestSale').textContent = data.database?.newest_sale || '--';
+                    document.getElementById('oldestSale').textContent = data.database?.oldest_sale || '--';
+                }
+            } catch (e) {
+                document.getElementById('apiStatus').textContent = 'Error';
+                document.getElementById('apiStatus').className = 'status status-stopped';
+            }
+        }
+
+        async function checkScheduler() {
+            try {
+                const data = await apiCall('/scheduler/status');
+                if (data.success) {
+                    const status = data.status;
+                    const statusEl = document.getElementById('schedulerStatus');
+                    statusEl.textContent = status.is_running ? 'Running' : 'Stopped';
+                    statusEl.className = 'status ' + (status.is_running ? 'status-running' : 'status-stopped');
+                    document.getElementById('lastFetch').textContent = status.last_fetch || 'Never';
+                    document.getElementById('nextFetch').textContent = status.next_fetch || '--';
+                }
+            } catch (e) {
+                console.error('Scheduler check failed:', e);
+            }
+        }
+
+        async function startScheduler() {
+            const data = await apiCall('/scheduler/start', 'POST');
+            showToast(data.message || 'Scheduler started', data.success ? 'success' : 'error');
+            checkScheduler();
+        }
+
+        async function stopScheduler() {
+            const data = await apiCall('/scheduler/stop', 'POST');
+            showToast(data.message || 'Scheduler stopped', data.success ? 'success' : 'error');
+            checkScheduler();
+        }
+
+        async function triggerFetch() {
+            const logEl = document.getElementById('fetchLog');
+            logEl.style.display = 'block';
+            logEl.innerHTML = '<div class="log-entry">Starting fetch...</div>';
+
+            try {
+                const data = await apiCall('/fetch', 'POST');
+                if (data.success) {
+                    const stats = data.stats;
+                    logEl.innerHTML = `
+                        <div class="log-entry">✓ Fetch completed in ${stats.duration_seconds?.toFixed(2)}s</div>
+                        <div class="log-entry">  Total fetched: ${stats.total_fetched}</div>
+                        <div class="log-entry">  New sales: ${stats.new_sales}</div>
+                        <div class="log-entry">  Duplicates: ${stats.duplicates}</div>
+                    `;
+                    showToast('Fetch completed!', 'success');
+                    checkHealth();
+                } else {
+                    logEl.innerHTML = `<div class="log-entry" style="color: #ef4444;">✗ ${data.error}</div>`;
+                    showToast('Fetch failed: ' + data.error, 'error');
+                }
+            } catch (e) {
+                logEl.innerHTML = `<div class="log-entry" style="color: #ef4444;">✗ ${e.message}</div>`;
+                showToast('Fetch failed', 'error');
+            }
+        }
+
+        async function refetchData() {
+            const dateInput = document.getElementById('refetchDate');
+            const fromDate = dateInput.value;
+
+            if (!fromDate) {
+                showToast('Please select a date', 'error');
+                return;
+            }
+
+            if (!confirm(`This will DELETE all sales from ${fromDate} onwards and re-fetch. Continue?`)) {
+                return;
+            }
+
+            try {
+                const data = await apiCall('/refetch', 'POST', { from_date: fromDate, key: adminKey });
+                if (data.success) {
+                    showToast(`Deleted ${data.deleted_count} sales and re-fetched`, 'success');
+                    checkHealth();
+                } else {
+                    showToast('Refetch failed: ' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('Refetch failed: ' + e.message, 'error');
+            }
+        }
+
+        // Initial load
+        checkHealth();
+        checkScheduler();
+    </script>
+</body>
+
+</html>

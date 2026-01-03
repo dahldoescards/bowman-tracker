@@ -376,6 +376,52 @@ def delete_sales_from_date(from_date: str) -> int:
         return count
 
 
+def get_sale_by_id(sale_id: str) -> dict:
+    """Get a single sale by its unique_id."""
+    with db_session() as conn:
+        cursor = get_cursor(conn)
+        p = placeholder()
+        cursor.execute(f'SELECT * FROM sales WHERE unique_id = {p}', (sale_id,))
+        result = cursor.fetchone()
+        return dict(result) if result else None
+
+
+def update_sale_record(sale_id: str, updates: dict) -> bool:
+    """
+    Update specific fields of a sale record.
+    
+    Args:
+        sale_id: The unique_id of the sale
+        updates: Dict of field -> value to update
+    
+    Returns:
+        True if updated, False if sale not found
+    """
+    if not updates:
+        return False
+    
+    with db_session() as conn:
+        cursor = get_cursor(conn)
+        p = placeholder()
+        
+        # Build SET clause
+        set_parts = []
+        values = []
+        for field, value in updates.items():
+            set_parts.append(f"{field} = {p}")
+            values.append(value)
+        
+        set_clause = ', '.join(set_parts)
+        values.append(sale_id)  # For WHERE clause
+        
+        cursor.execute(f'UPDATE sales SET {set_clause} WHERE unique_id = {p}', tuple(values))
+        
+        if cursor.rowcount > 0:
+            invalidate_cache()
+            logger.info(f"Updated sale {sale_id}: {updates}")
+            return True
+        return False
+
 def get_sales_by_variant(variant_type: str, start_date: str = None, end_date: str = None) -> list:
     """
     Get all sales for a specific variant type, optionally filtered by date range.

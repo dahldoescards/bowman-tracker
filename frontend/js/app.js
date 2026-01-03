@@ -761,7 +761,67 @@ async function loadAllData() {
     ]);
 }
 
+// ============================================================================
+// Theme Toggle
+// ============================================================================
+
+function initTheme() {
+    // Check for saved theme preference or system preference
+    const savedTheme = localStorage.getItem('theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    } else if (!systemPrefersDark) {
+        // Only set light if system prefers light (dark is default)
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
+
+    // Setup toggle button
+    const toggleBtn = document.getElementById('themeToggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', toggleTheme);
+    }
+}
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const currentTheme = html.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+    if (newTheme === 'dark') {
+        html.removeAttribute('data-theme');
+    } else {
+        html.setAttribute('data-theme', newTheme);
+    }
+
+    localStorage.setItem('theme', newTheme);
+
+    // Update chart colors if chart exists
+    if (state.chart) {
+        updateChartTheme(newTheme);
+    }
+}
+
+function updateChartTheme(theme) {
+    const isLight = theme === 'light';
+
+    state.chart.applyOptions({
+        layout: {
+            background: { type: 'solid', color: 'transparent' },
+            textColor: isLight ? '#475569' : '#94a3b8',
+        },
+        grid: {
+            vertLines: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' },
+            horzLines: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' },
+        },
+    });
+}
+
 async function init() {
+    // Initialize theme FIRST (before showing content)
+    initTheme();
+
     showLoading(true);
 
     try {
@@ -784,3 +844,4 @@ async function init() {
 
 // Start the application
 document.addEventListener('DOMContentLoaded', init);
+
