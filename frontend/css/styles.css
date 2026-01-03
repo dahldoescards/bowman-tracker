@@ -60,6 +60,24 @@
     --color-hobby-glow: rgba(16, 185, 129, 0.15);
 }
 
+/* Light mode - header background */
+[data-theme="light"] .header {
+    background: rgba(248, 250, 252, 0.85);
+}
+
+/* Light mode - logo text gradient */
+[data-theme="light"] .logo-text h1 {
+    background: linear-gradient(135deg, #0f172a, #475569);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Light mode - footer */
+[data-theme="light"] .footer {
+    background: rgba(241, 245, 249, 0.9);
+}
+
 /* Theme toggle button - inline in header */
 .theme-toggle {
     position: relative;
@@ -200,6 +218,7 @@ body {
     letter-spacing: -0.02em;
     background: linear-gradient(135deg, var(--color-text-primary), var(--color-text-secondary));
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
