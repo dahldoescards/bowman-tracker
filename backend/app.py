@@ -40,6 +40,7 @@ from services.scheduler import get_scheduler, run_single_fetch
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='../frontend', static_url_path='')
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend')
 
 # Initialize Sentry (optional - only if SENTRY_DSN is set)
 SENTRY_DSN = os.environ.get('SENTRY_DSN')
@@ -62,7 +63,7 @@ try:
     from prometheus_flask_exporter import PrometheusMetrics
     metrics = PrometheusMetrics(app, group_by='endpoint')
     # Custom metrics
-    metrics.info('app_info', 'Application info', version='1.3.0')
+    metrics.info('app_info', 'Application info', version='1.4.0')
     logger.info("Prometheus metrics enabled at /metrics")
 except ImportError:
     metrics = None
@@ -117,6 +118,36 @@ def rate_limit(f):
         
         # Record this request
         _rate_limit_data[client_ip].append(current_time)
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_admin_key(f):
+    """Decorator to require admin authentication via SECRET_KEY."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Get key from header or JSON body
+        provided_key = request.headers.get('X-Admin-Key')
+        if not provided_key and request.is_json:
+            provided_key = request.json.get('key')
+        
+        expected_key = os.environ.get('SECRET_KEY', '')
+        
+        # Validate key
+        if not expected_key:
+            logger.error("SECRET_KEY not configured - admin endpoints disabled")
+            return jsonify({
+                'success': False,
+                'error': 'Server configuration error'
+            }), 500
+        
+        if provided_key != expected_key:
+            logger.warning(f"Invalid admin key attempt from {request.remote_addr}")
+            return jsonify({
+                'success': False,
+                'error': 'Invalid or missing admin key'
+            }), 403
         
         return f(*args, **kwargs)
     return decorated_function
@@ -329,6 +360,7 @@ def get_sales():
 
 
 @app.route('/api/sales/<variant>')
+@rate_limit
 def get_sales_for_variant(variant):
     """Get sales for a specific variant type."""
     if variant not in ['jumbo', 'breakers_delight', 'hobby']:
@@ -348,6 +380,7 @@ def get_sales_for_variant(variant):
 
 
 @app.route('/api/chart/<variant>')
+@rate_limit
 def get_chart_data(variant):
     """
     Get time-series data formatted for charting.
@@ -412,6 +445,7 @@ def get_chart_data(variant):
 
 
 @app.route('/api/summary')
+@rate_limit
 def get_summary():
     """Get summary statistics for all variants."""
     summary = get_sales_summary()
@@ -448,7 +482,17 @@ def scheduler_status():
 
 @app.route('/api/scheduler/start', methods=['POST'])
 def start_scheduler():
-    """Start the scheduler."""
+    """Start the scheduler. Requires admin key."""
+    # Require authentication for scheduler control
+    provided_key = request.headers.get('X-Admin-Key') or request.json.get('key') if request.is_json else None
+    expected_key = os.environ.get('SECRET_KEY', '')
+    
+    if not expected_key or provided_key != expected_key:
+        return jsonify({
+            'success': False,
+            'error': 'Invalid or missing admin key'
+        }), 403
+    
     scheduler = get_scheduler()
     scheduler.start()
     
@@ -461,7 +505,17 @@ def start_scheduler():
 
 @app.route('/api/scheduler/stop', methods=['POST'])
 def stop_scheduler():
-    """Stop the scheduler."""
+    """Stop the scheduler. Requires admin key."""
+    # Require authentication for scheduler control
+    provided_key = request.headers.get('X-Admin-Key') or request.json.get('key') if request.is_json else None
+    expected_key = os.environ.get('SECRET_KEY', '')
+    
+    if not expected_key or provided_key != expected_key:
+        return jsonify({
+            'success': False,
+            'error': 'Invalid or missing admin key'
+        }), 403
+    
     scheduler = get_scheduler()
     scheduler.stop()
     
@@ -474,7 +528,17 @@ def stop_scheduler():
 
 @app.route('/api/fetch', methods=['POST'])
 def trigger_fetch():
-    """Manually trigger a data fetch."""
+    """Manually trigger a data fetch. Requires admin key."""
+    # Require authentication
+    provided_key = request.headers.get('X-Admin-Key') or (request.json.get('key') if request.is_json else None)
+    expected_key = os.environ.get('SECRET_KEY', '')
+    
+    if not expected_key or provided_key != expected_key:
+        return jsonify({
+            'success': False,
+            'error': 'Invalid or missing admin key'
+        }), 403
+    
     try:
         stats = run_single_fetch()
         return jsonify({
@@ -483,6 +547,7 @@ def trigger_fetch():
             'stats': stats
         })
     except Exception as e:
+        logger.error(f"Fetch failed: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -610,7 +675,7 @@ def health_check():
         'status': 'healthy' if db_healthy else 'degraded',
         'timestamp': datetime.now().isoformat(),
         'database': db_stats,
-        'version': '1.3.0'
+        'version': '1.4.0'
     })
 
 
