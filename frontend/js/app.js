@@ -153,6 +153,80 @@ function showLoading(show = true) {
     }
 }
 
+/**
+ * Show skeleton loading state for an element
+ * @param {HTMLElement} element - Element to show skeleton in
+ * @param {string} type - Type of skeleton: 'text', 'price', 'chart'
+ */
+function showSkeleton(element, type = 'text') {
+    if (!element) return;
+
+    // Store original content
+    if (!element.dataset.originalContent) {
+        element.dataset.originalContent = element.innerHTML;
+    }
+
+    // Add skeleton based on type
+    switch (type) {
+        case 'price':
+            element.innerHTML = '<span class="skeleton skeleton-price"></span>';
+            break;
+        case 'chart':
+            element.innerHTML = '<div class="skeleton skeleton-chart"></div>';
+            break;
+        case 'badge':
+            element.innerHTML = '<span class="skeleton skeleton-badge"></span>';
+            break;
+        default:
+            element.innerHTML = '<span class="skeleton skeleton-text"></span>';
+    }
+}
+
+/**
+ * Hide skeleton and restore content
+ * @param {HTMLElement} element - Element to restore
+ * @param {string} newContent - New content to display (optional)
+ */
+function hideSkeleton(element, newContent = null) {
+    if (!element) return;
+
+    if (newContent !== null) {
+        element.innerHTML = newContent;
+    } else if (element.dataset.originalContent) {
+        element.innerHTML = element.dataset.originalContent;
+    }
+
+    delete element.dataset.originalContent;
+}
+
+/**
+ * Show skeleton states for summary cards
+ */
+function showCardSkeletons() {
+    // Price values
+    ['jumboPrice', 'delightPrice', 'hobbyPrice'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.textContent === '--') {
+            el.classList.add('skeleton', 'skeleton-pulse');
+            el.style.width = '80px';
+            el.style.display = 'inline-block';
+        }
+    });
+}
+
+/**
+ * Hide skeleton states from summary cards
+ */
+function hideCardSkeletons() {
+    ['jumboPrice', 'delightPrice', 'hobbyPrice'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.classList.remove('skeleton', 'skeleton-pulse');
+            el.style.width = '';
+        }
+    });
+}
+
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
@@ -822,6 +896,8 @@ async function init() {
     // Initialize theme FIRST (before showing content)
     initTheme();
 
+    // Show skeleton loading states immediately
+    showCardSkeletons();
     showLoading(true);
 
     try {
@@ -839,6 +915,8 @@ async function init() {
         showToast('Failed to load initial data. Is the API server running?', 'error');
     }
 
+    // Hide skeletons when done
+    hideCardSkeletons();
     showLoading(false);
 }
 

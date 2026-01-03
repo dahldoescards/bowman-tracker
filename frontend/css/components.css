@@ -261,3 +261,125 @@
     padding-top: var(--space-lg);
     border-top: 1px solid var(--border-color);
 }
+
+/* ============================================================================
+   Skeleton Loading States
+   ============================================================================ */
+
+/* Base skeleton animation */
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton {
+    background: linear-gradient(90deg,
+            var(--color-bg-tertiary) 0%,
+            var(--color-bg-secondary) 50%,
+            var(--color-bg-tertiary) 100%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+}
+
+/* Skeleton for text elements */
+.skeleton-text {
+    height: 1em;
+    width: 100%;
+    margin-bottom: 0.5em;
+}
+
+.skeleton-text.short {
+    width: 40%;
+}
+
+.skeleton-text.medium {
+    width: 70%;
+}
+
+/* Skeleton for price values */
+.skeleton-price {
+    height: 2.5rem;
+    width: 120px;
+}
+
+/* Skeleton for small badges/chips */
+.skeleton-badge {
+    height: 1.5rem;
+    width: 60px;
+    border-radius: var(--radius-full);
+}
+
+/* Skeleton for chart area */
+.skeleton-chart {
+    height: 300px;
+    width: 100%;
+    border-radius: var(--radius-md);
+}
+
+/* Skeleton for table rows */
+.skeleton-row {
+    display: flex;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.skeleton-row .skeleton-cell {
+    height: 1rem;
+    flex: 1;
+}
+
+/* Skeleton card (for summary cards while loading) */
+.skeleton-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+}
+
+.skeleton-card .skeleton-header {
+    height: 1rem;
+    width: 60%;
+    margin-bottom: var(--space-md);
+}
+
+.skeleton-card .skeleton-value {
+    height: 2rem;
+    width: 80%;
+    margin-bottom: var(--space-sm);
+}
+
+.skeleton-card .skeleton-subtext {
+    height: 0.75rem;
+    width: 50%;
+}
+
+/* Hide skeleton when content loads */
+.loaded .skeleton {
+    display: none;
+}
+
+/* Pulse animation alternative */
+@keyframes skeleton-pulse {
+
+    0%,
+    100% {
+        opacity: 0.4;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+.skeleton-pulse {
+    background: var(--color-bg-tertiary);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+}
