@@ -30,7 +30,73 @@
             background: var(--color-bg);
             color: var(--color-text);
             min-height: 100vh;
+        }
+
+        /* Login Screen */
+        .login-screen {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-card {
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            border-radius: 16px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-card h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-card .subtitle {
+            color: var(--color-text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 2rem;
+        }
+
+        .login-card input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--color-border);
+            background: var(--color-bg);
+            color: var(--color-text);
+            font-family: inherit;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .login-card input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .login-card .error {
+            color: var(--color-danger);
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .login-card .error.show {
+            display: block;
+        }
+
+        /* Dashboard (hidden by default) */
+        .dashboard {
+            display: none;
             padding: 2rem;
+        }
+
+        .dashboard.show {
+            display: block;
         }
 
         .container {
@@ -38,14 +104,36 @@
             margin: 0 auto;
         }
 
-        h1 {
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header-row h1 {
             font-size: 2rem;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
         }
 
         .subtitle {
             color: var(--color-text-muted);
-            margin-bottom: 2rem;
+        }
+
+        .logout-btn {
+            background: transparent;
+            border: 1px solid var(--color-border);
+            color: var(--color-text-muted);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            border-color: var(--color-danger);
+            color: var(--color-danger);
         }
 
         .grid {
@@ -109,6 +197,8 @@
             border: none;
             transition: all 0.2s;
             margin: 0.25rem;
+            font-family: inherit;
+            text-decoration: none;
         }
 
         .btn-primary {
@@ -196,6 +286,7 @@
             background: var(--color-card);
             border: 1px solid var(--color-border);
             display: none;
+            z-index: 1000;
         }
 
         #toast.show {
@@ -214,90 +305,114 @@
                 opacity: 1;
             }
         }
+
+        .lock-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <a href="/" class="back-link">← Back to Dashboard</a>
-        <h1>Admin Dashboard</h1>
-        <p class="subtitle">Manage your Bowman Draft Tracker instance</p>
+    <!-- Login Screen -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-card">
+            <div class="lock-icon">🔐</div>
+            <h1>Admin Access</h1>
+            <p class="subtitle">Enter your secret key to continue</p>
+            <div class="error" id="loginError">Invalid key. Please try again.</div>
+            <input type="password" id="keyInput" placeholder="Enter SECRET_KEY" autocomplete="off">
+            <button class="btn btn-primary" style="width: 100%;" onclick="attemptLogin()">Login</button>
+        </div>
+    </div>
 
-        <div class="grid">
-            <!-- Database Stats -->
-            <div class="card">
-                <h2>📊 Database</h2>
-                <div id="dbStats">
-                    <div class="stat" id="totalSales">--</div>
-                    <div class="stat-label">Total Sales</div>
-                    <div style="margin-top: 1rem; font-size: 0.875rem;">
-                        <div>Type: <span id="dbType">--</span></div>
-                        <div>Newest: <span id="newestSale">--</span></div>
-                        <div>Oldest: <span id="oldestSale">--</span></div>
+    <!-- Dashboard (hidden until authenticated) -->
+    <div class="dashboard" id="dashboard">
+        <div class="container">
+            <div class="header-row">
+                <div>
+                    <a href="/" class="back-link">← Back to Dashboard</a>
+                    <h1>Admin Dashboard</h1>
+                    <p class="subtitle">Manage your Bowman Draft Tracker instance</p>
+                </div>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+
+            <div class="grid">
+                <!-- Database Stats -->
+                <div class="card">
+                    <h2>📊 Database</h2>
+                    <div id="dbStats">
+                        <div class="stat" id="totalSales">--</div>
+                        <div class="stat-label">Total Sales</div>
+                        <div style="margin-top: 1rem; font-size: 0.875rem;">
+                            <div>Type: <span id="dbType">--</span></div>
+                            <div>Newest: <span id="newestSale">--</span></div>
+                            <div>Oldest: <span id="oldestSale">--</span></div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Scheduler Status -->
-            <div class="card">
-                <h2>⏰ Scheduler</h2>
-                <div>
-                    Status: <span id="schedulerStatus" class="status status-stopped">Unknown</span>
+                <!-- Scheduler Status -->
+                <div class="card">
+                    <h2>⏰ Scheduler</h2>
+                    <div>
+                        Status: <span id="schedulerStatus" class="status status-stopped">Unknown</span>
+                    </div>
+                    <div style="margin-top: 1rem; font-size: 0.875rem;">
+                        <div>Last Fetch: <span id="lastFetch">--</span></div>
+                        <div>Next Fetch: <span id="nextFetch">--</span></div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-success" onclick="startScheduler()">Start</button>
+                        <button class="btn btn-danger" onclick="stopScheduler()">Stop</button>
+                    </div>
                 </div>
-                <div style="margin-top: 1rem; font-size: 0.875rem;">
-                    <div>Last Fetch: <span id="lastFetch">--</span></div>
-                    <div>Next Fetch: <span id="nextFetch">--</span></div>
-                </div>
-                <div class="actions">
-                    <button class="btn btn-success" onclick="startScheduler()">Start</button>
-                    <button class="btn btn-danger" onclick="stopScheduler()">Stop</button>
-                </div>
-            </div>
 
-            <!-- Manual Fetch -->
-            <div class="card">
-                <h2>🔄 Manual Fetch</h2>
-                <p style="color: var(--color-text-muted); font-size: 0.875rem;">Trigger a manual data fetch from the
-                    source.</p>
-                <div class="actions">
-                    <button class="btn btn-primary" onclick="triggerFetch()">Fetch Now</button>
+                <!-- Manual Fetch -->
+                <div class="card">
+                    <h2>🔄 Manual Fetch</h2>
+                    <p style="color: var(--color-text-muted); font-size: 0.875rem;">Trigger a manual data fetch from the
+                        source.</p>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="triggerFetch()">Fetch Now</button>
+                    </div>
+                    <div id="fetchLog" class="log-output" style="display: none;"></div>
                 </div>
-                <div id="fetchLog" class="log-output" style="display: none;"></div>
-            </div>
 
-            <!-- Refetch Data -->
-            <div class="card">
-                <h2>🗑️ Refetch Data</h2>
-                <p style="color: var(--color-text-muted); font-size: 0.875rem;">Delete sales from a date and re-fetch.
-                    Use with caution!</p>
-                <div class="input-group">
-                    <input type="date" id="refetchDate" placeholder="YYYY-MM-DD">
-                    <button class="btn btn-danger" onclick="refetchData()">Refetch</button>
+                <!-- Refetch Data -->
+                <div class="card">
+                    <h2>🗑️ Refetch Data</h2>
+                    <p style="color: var(--color-text-muted); font-size: 0.875rem;">Delete sales from a date and
+                        re-fetch. Use with caution!</p>
+                    <div class="input-group">
+                        <input type="date" id="refetchDate" placeholder="YYYY-MM-DD">
+                        <button class="btn btn-danger" onclick="refetchData()">Refetch</button>
+                    </div>
                 </div>
-            </div>
 
-            <!-- API Health -->
-            <div class="card">
-                <h2>💚 API Health</h2>
-                <div>
-                    Status: <span id="apiStatus" class="status status-healthy">Checking...</span>
+                <!-- API Health -->
+                <div class="card">
+                    <h2>💚 API Health</h2>
+                    <div>
+                        Status: <span id="apiStatus" class="status status-healthy">Checking...</span>
+                    </div>
+                    <div style="margin-top: 1rem; font-size: 0.875rem;">
+                        <div>Version: <span id="apiVersion">--</span></div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="checkHealth()">Refresh</button>
+                    </div>
                 </div>
-                <div style="margin-top: 1rem; font-size: 0.875rem;">
-                    <div>Version: <span id="apiVersion">--</span></div>
-                    <div>Uptime: <span id="apiUptime">--</span></div>
-                </div>
-                <div class="actions">
-                    <button class="btn btn-primary" onclick="checkHealth()">Refresh</button>
-                </div>
-            </div>
 
-            <!-- Quick Links -->
-            <div class="card">
-                <h2>🔗 Quick Links</h2>
-                <div class="actions">
-                    <a href="/api/health" target="_blank" class="btn btn-primary">Health API</a>
-                    <a href="/api/summary" target="_blank" class="btn btn-primary">Summary API</a>
-                    <a href="/api/scheduler/status" target="_blank" class="btn btn-primary">Scheduler API</a>
+                <!-- Quick Links -->
+                <div class="card">
+                    <h2>🔗 Quick Links</h2>
+                    <div class="actions">
+                        <a href="/api/health" target="_blank" class="btn btn-primary">Health API</a>
+                        <a href="/api/summary" target="_blank" class="btn btn-primary">Summary API</a>
+                        <a href="/api/scheduler/status" target="_blank" class="btn btn-primary">Scheduler API</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -307,12 +422,82 @@
 
     <script>
         const API_BASE = '/api';
-        let adminKey = localStorage.getItem('adminKey') || '';
+        let adminKey = '';
 
-        // Prompt for admin key if not set
-        if (!adminKey) {
-            adminKey = prompt('Enter admin key (SECRET_KEY):');
-            if (adminKey) localStorage.setItem('adminKey', adminKey);
+        // Check if already logged in
+        function checkExistingAuth() {
+            const savedKey = sessionStorage.getItem('adminKey');
+            if (savedKey) {
+                adminKey = savedKey;
+                showDashboard();
+            }
+        }
+
+        // Handle Enter key on login input
+        document.getElementById('keyInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                attemptLogin();
+            }
+        });
+
+        async function attemptLogin() {
+            const keyInput = document.getElementById('keyInput');
+            const errorEl = document.getElementById('loginError');
+            const inputKey = keyInput.value.trim();
+
+            if (!inputKey) {
+                errorEl.textContent = 'Please enter a key.';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            // Test the key by calling an authenticated endpoint
+            try {
+                const res = await fetch(API_BASE + '/scheduler/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Key': inputKey
+                    }
+                });
+
+                // If we get 403, key is wrong
+                // If we get 200, key is correct (scheduler started, we'll stop it)
+                if (res.status === 403) {
+                    errorEl.textContent = 'Invalid key. Please try again.';
+                    errorEl.classList.add('show');
+                    keyInput.value = '';
+                    keyInput.focus();
+                    return;
+                }
+
+                // Key is valid - save it and show dashboard
+                adminKey = inputKey;
+                sessionStorage.setItem('adminKey', adminKey);
+                errorEl.classList.remove('show');
+                showDashboard();
+
+            } catch (e) {
+                errorEl.textContent = 'Connection error. Please try again.';
+                errorEl.classList.add('show');
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('dashboard').classList.add('show');
+
+            // Load data
+            checkHealth();
+            checkScheduler();
+        }
+
+        function logout() {
+            sessionStorage.removeItem('adminKey');
+            adminKey = '';
+            document.getElementById('dashboard').classList.remove('show');
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('keyInput').value = '';
         }
 
         function showToast(message, type = 'info') {
@@ -436,9 +621,8 @@
             }
         }
 
-        // Initial load
-        checkHealth();
-        checkScheduler();
+        // Check for existing auth on load
+        checkExistingAuth();
     </script>
 </body>
 
