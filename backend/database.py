@@ -54,18 +54,22 @@ _shutting_down = False
 
 
 def init_connection_pool():
-    """Initialize PostgreSQL connection pool."""
+    """Initialize PostgreSQL connection pool with configurable size."""
     global _pg_pool
     if USE_POSTGRES and _pg_pool is None:
         with _pool_lock:
             if _pg_pool is None:
                 try:
+                    # Configurable pool size for scale
+                    min_conn = int(os.environ.get('DB_POOL_MIN', 5))
+                    max_conn = int(os.environ.get('DB_POOL_MAX', 20))
+                    
                     _pg_pool = pool.ThreadedConnectionPool(
-                        minconn=2,
-                        maxconn=10,
+                        minconn=min_conn,
+                        maxconn=max_conn,
                         dsn=DATABASE_URL
                     )
-                    logger.info("PostgreSQL connection pool initialized")
+                    logger.info(f"PostgreSQL connection pool initialized (min={min_conn}, max={max_conn})")
                 except Exception as e:
                     logger.error(f"Failed to create connection pool: {e}")
                     raise

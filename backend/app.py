@@ -91,19 +91,29 @@ def internal_error(error):
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX_REQUESTS = 60  # requests per window
+RATE_LIMIT_MAX_IPS = 10000  # Maximum IPs to track (prevents memory exhaustion)
 _rate_limit_data = defaultdict(list)
-
-
+_rate_limit_last_cleanup = time.time()
 
 
 def rate_limit(f):
-    """Simple in-memory rate limiter decorator."""
+    """
+    Simple in-memory rate limiter decorator.
+    Limits requests per IP address with automatic cleanup to prevent memory leaks.
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        global _rate_limit_last_cleanup
+        
         client_ip = request.remote_addr or 'unknown'
         current_time = time.time()
         
-        # Clean old entries
+        # Periodic cleanup of all stale entries (every 5 minutes)
+        if current_time - _rate_limit_last_cleanup > 300:
+            cleanup_rate_limit_data(current_time)
+            _rate_limit_last_cleanup = current_time
+        
+        # Clean old entries for this IP
         _rate_limit_data[client_ip] = [
             t for t in _rate_limit_data[client_ip] 
             if current_time - t < RATE_LIMIT_WINDOW
@@ -111,6 +121,7 @@ def rate_limit(f):
         
         # Check rate limit
         if len(_rate_limit_data[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
+            logger.warning(f"Rate limit exceeded for IP: {client_ip}")
             return jsonify({
                 'success': False, 
                 'error': 'Rate limit exceeded. Please try again later.'
@@ -121,6 +132,33 @@ def rate_limit(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+
+def cleanup_rate_limit_data(current_time):
+    """Remove stale rate limit entries to prevent memory leaks."""
+    stale_ips = []
+    for ip, timestamps in _rate_limit_data.items():
+        # Remove old timestamps
+        fresh = [t for t in timestamps if current_time - t < RATE_LIMIT_WINDOW]
+        if not fresh:
+            stale_ips.append(ip)
+        else:
+            _rate_limit_data[ip] = fresh
+    
+    # Remove completely stale IPs
+    for ip in stale_ips:
+        del _rate_limit_data[ip]
+    
+    # Emergency cleanup if too many IPs tracked
+    if len(_rate_limit_data) > RATE_LIMIT_MAX_IPS:
+        logger.warning(f"Rate limiter tracking {len(_rate_limit_data)} IPs, clearing oldest entries")
+        # Sort by oldest request and keep only recent half
+        sorted_ips = sorted(_rate_limit_data.items(), key=lambda x: max(x[1]) if x[1] else 0)
+        for ip, _ in sorted_ips[:len(sorted_ips)//2]:
+            del _rate_limit_data[ip]
+    
+    if stale_ips:
+        logger.debug(f"Cleaned up {len(stale_ips)} stale rate limit entries")
 
 
 def require_admin_key(f):
@@ -763,19 +801,6 @@ def api_info():
 
 
 # ============================================================================
-# Error Handlers
-# ============================================================================
-
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({'success': False, 'error': 'Not found'}), 404
-
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({'success': False, 'error': 'Internal server error'}), 500
-
-
-# ============================================================================
 # Main Entry Point
 # ============================================================================
 
@@ -785,10 +810,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Bowman Draft Tracker API Server')
     parser.add_argument('--host', default='127.0.0.1', help='Host to bind to')
     parser.add_argument('--port', type=int, default=5000, help='Port to bind to')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode (NOT for production)')
     parser.add_argument('--auto-schedule', action='store_true', help='Auto-start scheduler')
     
     args = parser.parse_args()
+    
+    # Security check: Never run debug in production
+    if args.debug and os.environ.get('FLASK_ENV') == 'production':
+        logger.error("SECURITY: Debug mode cannot be enabled in production!")
+        sys.exit(1)
     
     # Optionally start scheduler
     if args.auto_schedule:
@@ -797,8 +827,10 @@ if __name__ == '__main__':
         print("Scheduler auto-started with hourly fetching")
     
     print(f"\n{'='*60}")
-    print(f"  2025 Bowman Draft Box Tracker")
+    print(f"  2025 Bowman Draft Box Tracker v1.4.1")
     print(f"  Server running at http://{args.host}:{args.port}")
+    if args.debug:
+        print(f"  ⚠️  DEBUG MODE - NOT FOR PRODUCTION")
     print(f"{'='*60}\n")
     
     app.run(host=args.host, port=args.port, debug=args.debug)
