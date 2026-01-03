@@ -842,6 +842,33 @@ async function init() {
     showLoading(false);
 }
 
+// Register service worker for offline support
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+                console.log('Service Worker registered:', registration.scope);
+
+                // Check for updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // New version available
+                            console.log('New version available - refresh to update');
+                        }
+                    });
+                });
+            })
+            .catch(error => {
+                console.log('Service Worker registration failed:', error);
+            });
+    }
+}
+
 // Start the application
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    registerServiceWorker();
+});
 

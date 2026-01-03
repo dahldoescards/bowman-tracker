@@ -291,7 +291,19 @@ def init_database():
             ON sales(ebay_item_id)
         ''')
         
-        print("Database initialized successfully.")
+        # Composite index for common query: filter by variant + order by date
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sales_variant_date 
+            ON sales(variant_type, sale_date DESC)
+        ''')
+        
+        # Index for date range queries
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sales_date 
+            ON sales(sale_date)
+        ''')
+        
+        logger.info("Database initialized successfully with all indexes")
 
 def check_duplicate(unique_id: str) -> bool:
     """Check if a sale with this unique_id already exists."""

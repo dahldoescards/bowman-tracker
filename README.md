@@ -252,11 +252,54 @@ SECRET_KEY=your-key FLASK_ENV=production gunicorn -w 4 -b 0.0.0.0:5000 --timeout
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `SECRET_KEY` | - | ✅ Production | Secure random string for sessions |
+| `SECRET_KEY` | - | ✅ Production | Secure random string for admin authentication |
 | `DATABASE_URL` | - | ⚠️ Recommended | PostgreSQL connection string |
 | `FLASK_ENV` | `development` | ✅ Production | Set to `production` |
 | `USE_PROXIES` | `true` | - | Set to `false` for cloud |
 | `PORT` | `5000` | - | Server port |
+| `DB_POOL_MIN` | `5` | - | Min database connections |
+| `DB_POOL_MAX` | `20` | - | Max database connections |
+
+## Security
+
+### API Access Control
+
+All API endpoints are protected and only accessible from:
+- **Same-origin requests** (the frontend at bowmandrafttracker.com)
+- **Admin requests** with valid `X-Admin-Key` header
+- **Health check** (`/api/health`) is open for monitoring
+
+External requests (curl, Postman, other websites) will receive:
+```json
+{"success": false, "error": "API access restricted to authorized clients only"}
+```
+
+### Protected Admin Endpoints
+
+These endpoints require `X-Admin-Key` header or `key` in JSON body:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/scheduler/start` | POST | Start scheduler |
+| `/api/scheduler/stop` | POST | Stop scheduler |
+| `/api/fetch` | POST | Manual data fetch |
+| `/api/refetch` | POST | Delete and re-fetch data |
+| `/api/sales/<id>` | PATCH | Update sale record |
+
+### Rate Limiting
+
+All public endpoints are rate-limited to **60 requests per minute per IP**.
+
+### Security Headers
+
+The application sets these security headers on all responses:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: SAMEORIGIN`
+- `X-XSS-Protection: 1; mode=block`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Content-Security-Policy` (restricts script/style sources)
+- `Strict-Transport-Security` (HTTPS only, production)
+
 
 ### Automatic Data Fetching
 

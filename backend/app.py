@@ -63,7 +63,7 @@ try:
     from prometheus_flask_exporter import PrometheusMetrics
     metrics = PrometheusMetrics(app, group_by='endpoint')
     # Custom metrics
-    metrics.info('app_info', 'Application info', version='1.4.1')
+    metrics.info('app_info', 'Application info', version='1.5.0')
     logger.info("Prometheus metrics enabled at /metrics")
 except ImportError:
     metrics = None
@@ -250,6 +250,24 @@ def validate_api_origin():
         'success': False,
         'error': 'API access restricted to authorized clients only'
     }), 403
+
+
+@app.before_request
+def start_timer():
+    """Start request timer for performance monitoring."""
+    request.start_time = time.time()
+
+
+@app.after_request
+def log_slow_requests(response):
+    """Log slow API requests for performance monitoring."""
+    if hasattr(request, 'start_time') and request.path.startswith('/api/'):
+        duration = time.time() - request.start_time
+        if duration > 1.0:  # Log requests slower than 1 second
+            logger.warning(f"Slow request: {request.method} {request.path} took {duration:.2f}s")
+        elif duration > 0.5:  # Debug log for moderately slow requests
+            logger.debug(f"Moderate request: {request.method} {request.path} took {duration:.2f}s")
+    return response
 
 
 @app.before_request
@@ -774,7 +792,7 @@ def health_check():
         'status': 'healthy' if db_healthy else 'degraded',
         'timestamp': datetime.now().isoformat(),
         'database': db_stats,
-        'version': '1.4.1'
+        'version': '1.5.0'
     })
 
 
@@ -827,7 +845,7 @@ if __name__ == '__main__':
         print("Scheduler auto-started with hourly fetching")
     
     print(f"\n{'='*60}")
-    print(f"  2025 Bowman Draft Box Tracker v1.4.1")
+    print(f"  2025 Bowman Draft Box Tracker v1.5.0")
     print(f"  Server running at http://{args.host}:{args.port}")
     if args.debug:
         print(f"  ⚠️  DEBUG MODE - NOT FOR PRODUCTION")
