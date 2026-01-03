@@ -63,7 +63,7 @@ try:
     from prometheus_flask_exporter import PrometheusMetrics
     metrics = PrometheusMetrics(app, group_by='endpoint')
     # Custom metrics
-    metrics.info('app_info', 'Application info', version='1.4.0')
+    metrics.info('app_info', 'Application info', version='1.4.1')
     logger.info("Prometheus metrics enabled at /metrics")
 except ImportError:
     metrics = None
@@ -151,6 +151,67 @@ def require_admin_key(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+
+@app.before_request
+def validate_api_origin():
+    """
+    Reject API requests from external sources.
+    Only allows:
+    - Same-origin requests (from our frontend)
+    - Admin requests with valid X-Admin-Key
+    - Health check endpoint (for monitoring)
+    """
+    # Skip validation for non-API routes
+    if not request.path.startswith('/api/'):
+        return None
+    
+    # Always allow health check for monitoring services
+    if request.path == '/api/health':
+        return None
+    
+    # Allow admin requests with valid key
+    provided_key = request.headers.get('X-Admin-Key')
+    if provided_key and provided_key == os.environ.get('SECRET_KEY', ''):
+        return None
+    
+    # Check Origin/Referer for same-origin requests
+    origin = request.headers.get('Origin', '')
+    referer = request.headers.get('Referer', '')
+    host = request.host
+    
+    # Get allowed origins
+    allowed_origins = [
+        f'https://{host}',
+        f'http://{host}',  # For local development
+        'https://bowmandrafttracker.com',
+        'https://www.bowmandrafttracker.com',
+    ]
+    
+    # For local development
+    if os.environ.get('FLASK_ENV') != 'production':
+        allowed_origins.extend([
+            'http://localhost:5000',
+            'http://127.0.0.1:5000',
+        ])
+    
+    # Validate origin/referer
+    is_valid_origin = any(origin.startswith(allowed) for allowed in allowed_origins if origin)
+    is_valid_referer = any(referer.startswith(allowed) for allowed in allowed_origins if referer)
+    
+    # For fetch requests from same page (no Origin header), check Sec-Fetch-Site
+    sec_fetch_site = request.headers.get('Sec-Fetch-Site', '')
+    is_same_origin = sec_fetch_site in ('same-origin', 'same-site', '')
+    
+    if is_valid_origin or is_valid_referer or is_same_origin:
+        return None
+    
+    # Block request
+    logger.warning(f"Blocked external API request: {request.path} from Origin={origin}, Referer={referer}")
+    return jsonify({
+        'success': False,
+        'error': 'API access restricted to authorized clients only'
+    }), 403
 
 
 @app.before_request
@@ -675,7 +736,7 @@ def health_check():
         'status': 'healthy' if db_healthy else 'degraded',
         'timestamp': datetime.now().isoformat(),
         'database': db_stats,
-        'version': '1.4.0'
+        'version': '1.4.1'
     })
 
 
