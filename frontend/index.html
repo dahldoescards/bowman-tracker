@@ -117,9 +117,40 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
 
-    <!-- TradingView Lightweight Charts - defer for better page load -->
-    <script defer
-        src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- TradingView Lightweight Charts - with fallback CDNs -->
+    <script>
+        // Try loading from multiple CDNs for reliability
+        function loadChartLibrary() {
+            var sources = [
+                'https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js',
+                'https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.0/lightweight-charts.standalone.production.js'
+            ];
+
+            function tryLoad(index) {
+                if (index >= sources.length) {
+                    console.error('Failed to load chart library from all CDNs');
+                    window.chartLibraryFailed = true;
+                    return;
+                }
+
+                var script = document.createElement('script');
+                script.src = sources[index];
+                script.onload = function () {
+                    console.log('Chart library loaded from:', sources[index]);
+                    window.chartLibraryLoaded = true;
+                };
+                script.onerror = function () {
+                    console.warn('Failed to load from:', sources[index]);
+                    tryLoad(index + 1);
+                };
+                document.head.appendChild(script);
+            }
+
+            tryLoad(0);
+        }
+        loadChartLibrary();
+    </script>
 
     <!-- Custom Styles - with cache-busting version -->
     <link rel="stylesheet" href="css/styles.css?v=7">

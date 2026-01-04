@@ -452,6 +452,27 @@ function initChart() {
     const chartContainer = document.getElementById('mainChart');
     if (!chartContainer) return;
 
+    // Check if chart library loaded successfully
+    if (typeof LightweightCharts === 'undefined') {
+        console.error('LightweightCharts library not loaded');
+        chartContainer.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary);">
+                <div style="text-align: center;">
+                    <p>📊 Chart library loading...</p>
+                    <p style="font-size: 0.75rem; margin-top: 0.5rem;">If this persists, try refreshing the page.</p>
+                </div>
+            </div>
+        `;
+        // Retry in 2 seconds
+        setTimeout(() => {
+            if (typeof LightweightCharts !== 'undefined') {
+                initChart();
+                loadChartData(state.currentVariant);
+            }
+        }, 2000);
+        return;
+    }
+
     // Clear existing chart
     chartContainer.innerHTML = '';
 
@@ -901,10 +922,17 @@ async function init() {
     showLoading(true);
 
     try {
-        // Initialize the chart first
-        initChart();
+        // Initialize the chart (may fail if library not loaded, but that's ok)
+        try {
+            initChart();
+        } catch (chartError) {
+            console.warn('Chart initialization delayed:', chartError.message);
+            // Chart will retry automatically via initChart's retry logic
+        }
 
         setupEventListeners();
+
+        // Load data even if chart failed
         await loadAllData();
 
         // Start auto-refresh
@@ -912,7 +940,10 @@ async function init() {
 
     } catch (error) {
         console.error('Initialization error:', error);
-        showToast('Failed to load initial data. Is the API server running?', 'error');
+        // Only show error if it's a real API failure, not a chart library issue
+        if (error.message && !error.message.includes('LightweightCharts')) {
+            showToast('Failed to load data. Please refresh the page.', 'error');
+        }
     }
 
     // Hide skeletons when done
