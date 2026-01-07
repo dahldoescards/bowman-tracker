@@ -56,6 +56,7 @@ const state = {
     salesData: {},
     chart: null,
     chartSeries: [], // Array to hold multiple series for multi-variant view
+    chartFallbackMode: false, // True when using table fallback instead of chart
     pagination: { page: 1, perPage: 15 },
     refreshTimer: null,
     cache: new Map(), // Simple cache for API responses
@@ -444,241 +445,364 @@ async function loadSalesTable(variant = 'all') {
 }
 
 
-// ============================================================================
 // TradingView Lightweight Charts - Candlestick Style
 // ============================================================================
 
-function initChart(retryCount = 0) {
+/**
+ * Check if chart library is available
+ * Since we self-host the library, it should always be available unless
+ * there's a critical server issue (in which case we fallback gracefully)
+ */
+function isChartLibraryAvailable() {
+    return typeof LightweightCharts !== 'undefined';
+}
+
+/**
+ * Show skeleton loading state for the chart
+ */
+function showChartSkeleton() {
     const chartContainer = document.getElementById('mainChart');
     if (!chartContainer) return;
 
-    const MAX_RETRIES = 10;
-    const BASE_DELAY = 500; // Start with 500ms, will increase exponentially
+    chartContainer.innerHTML = `
+        <div class="chart-skeleton" style="height: 400px; display: flex; flex-direction: column; justify-content: flex-end; padding: 1rem; gap: 0.5rem;">
+            <div style="display: flex; align-items: flex-end; gap: 4px; height: 100%;">
+                ${Array(20).fill(0).map((_, i) => {
+        const height = 30 + Math.random() * 60;
+        return `<div style="flex: 1; height: ${height}%; background: linear-gradient(180deg, rgba(99, 102, 241, 0.3) 0%, rgba(99, 102, 241, 0.1) 100%); border-radius: 4px 4px 0 0; animation: skeleton-pulse 1.5s ease-in-out infinite; animation-delay: ${i * 0.05}s;"></div>`;
+    }).join('')}
+            </div>
+            <div style="text-align: center; color: var(--color-text-tertiary); font-size: 0.875rem; padding-top: 1rem;">
+                Loading chart data...
+            </div>
+        </div>
+        <style>
+            @keyframes skeleton-pulse {
+                0%, 100% { opacity: 0.4; }
+                50% { opacity: 0.8; }
+            }
+        </style>
+    `;
+}
 
-    // Check if chart library loaded successfully
-    if (typeof LightweightCharts === 'undefined') {
-        // Check if all CDNs failed
-        if (window.chartLibraryFailed) {
-            console.error('Chart library failed to load from all CDNs');
-            chartContainer.innerHTML = `
-                <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary);">
-                    <div style="text-align: center;">
-                        <p>📊 Chart library unavailable</p>
-                        <p style="font-size: 0.75rem; margin-top: 0.5rem;">Please check your internet connection and refresh the page.</p>
-                        <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-primary); color: white; border: none; border-radius: 0.5rem; cursor: pointer;">
-                            Refresh Page
-                        </button>
-                    </div>
-                </div>
-            `;
-            return;
+/**
+ * Render a fallback table visualization when chart is unavailable
+ * This provides graceful degradation - users still see their data
+ */
+function renderFallbackChart(data, variant) {
+    const chartContainer = document.getElementById('mainChart');
+    const legend = document.getElementById('chartLegend');
+    if (!chartContainer) return;
+
+    state.chartFallbackMode = true;
+
+    // Group data by date for summary
+    const dailyData = {};
+    data.data_points.forEach(point => {
+        const date = point.date;
+        if (!dailyData[date]) {
+            dailyData[date] = { date, prices: [], count: 0 };
         }
+        dailyData[date].prices.push(point.y);
+        dailyData[date].count++;
+    });
 
-        if (retryCount >= MAX_RETRIES) {
-            console.error('Chart library failed to load after max retries');
-            chartContainer.innerHTML = `
-                <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary);">
-                    <div style="text-align: center;">
-                        <p>📊 Chart library timed out</p>
-                        <p style="font-size: 0.75rem; margin-top: 0.5rem;">Loading is taking longer than expected.</p>
-                        <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-primary); color: white; border: none; border-radius: 0.5rem; cursor: pointer;">
-                            Refresh Page
-                        </button>
-                    </div>
+    // Sort by date descending
+    const sortedDays = Object.values(dailyData).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+
+    // Calculate overall stats
+    const allPrices = data.data_points.map(p => p.y);
+    const avg = allPrices.length > 0 ? (allPrices.reduce((a, b) => a + b, 0) / allPrices.length) : 0;
+    const high = allPrices.length > 0 ? Math.max(...allPrices) : 0;
+    const low = allPrices.length > 0 ? Math.min(...allPrices) : 0;
+
+    chartContainer.innerHTML = `
+        <div style="padding: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: rgba(99, 102, 241, 0.1); padding: 1rem; border-radius: 0.75rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--color-text-tertiary); margin-bottom: 0.25rem;">Average</div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: var(--color-primary); font-family: var(--font-mono);">$${avg.toFixed(2)}</div>
                 </div>
-            `;
-            return;
-        }
-
-        console.log(`Chart library not ready, retry ${retryCount + 1}/${MAX_RETRIES}...`);
-        chartContainer.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary);">
-                <div style="text-align: center;">
-                    <p>📊 Chart library loading...</p>
-                    <p style="font-size: 0.75rem; margin-top: 0.5rem;">If this persists, try refreshing the page.</p>
+                <div style="background: rgba(34, 197, 94, 0.1); padding: 1rem; border-radius: 0.75rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--color-text-tertiary); margin-bottom: 0.25rem;">High</div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: var(--color-success); font-family: var(--font-mono);">$${high.toFixed(2)}</div>
+                </div>
+                <div style="background: rgba(239, 68, 68, 0.1); padding: 1rem; border-radius: 0.75rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--color-text-tertiary); margin-bottom: 0.25rem;">Low</div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: var(--color-danger); font-family: var(--font-mono);">$${low.toFixed(2)}</div>
+                </div>
+                <div style="background: rgba(148, 163, 184, 0.1); padding: 1rem; border-radius: 0.75rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--color-text-tertiary); margin-bottom: 0.25rem;">Total Sales</div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: var(--color-text-primary); font-family: var(--font-mono);">${data.data_points.length}</div>
                 </div>
             </div>
-        `;
+            
+            <div style="background: rgba(255,255,255,0.02); border-radius: 0.75rem; overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                    <thead>
+                        <tr style="background: rgba(255,255,255,0.05);">
+                            <th style="padding: 0.75rem 1rem; text-align: left; color: var(--color-text-tertiary); font-weight: 500;">Date</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right; color: var(--color-text-tertiary); font-weight: 500;">Sales</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right; color: var(--color-text-tertiary); font-weight: 500;">Avg Price</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right; color: var(--color-text-tertiary); font-weight: 500;">Range</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sortedDays.map(day => {
+        const dayAvg = day.prices.reduce((a, b) => a + b, 0) / day.prices.length;
+        const dayHigh = Math.max(...day.prices);
+        const dayLow = Math.min(...day.prices);
+        return `
+                                <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                                    <td style="padding: 0.75rem 1rem; color: var(--color-text-primary);">${formatDate(day.date)}</td>
+                                    <td style="padding: 0.75rem 1rem; text-align: right; color: var(--color-text-secondary);">${day.count}</td>
+                                    <td style="padding: 0.75rem 1rem; text-align: right; font-family: var(--font-mono); color: var(--color-primary);">$${dayAvg.toFixed(2)}</td>
+                                    <td style="padding: 0.75rem 1rem; text-align: right; font-family: var(--font-mono); color: var(--color-text-tertiary);">$${dayLow.toFixed(0)} - $${dayHigh.toFixed(0)}</td>
+                                </tr>
+                            `;
+    }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
 
-        // Exponential backoff with jitter: 500ms, 1s, 2s, 4s...
-        const delay = Math.min(BASE_DELAY * Math.pow(2, retryCount), 5000) + Math.random() * 200;
-        setTimeout(() => {
-            initChart(retryCount + 1);
-            if (typeof LightweightCharts !== 'undefined') {
-                loadChartData(state.currentVariant);
-            }
-        }, delay);
-        return;
+    // Update legend to show we're in fallback mode
+    if (legend) {
+        legend.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--color-text-tertiary); font-size: 0.875rem;">
+                <span>📊</span>
+                <span>Showing ${data.data_points.length} sales from the last ${sortedDays.length} days</span>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Initialize the chart with production-ready error handling
+ * Self-hosted library means no CDN race conditions
+ */
+function initChart() {
+    const chartContainer = document.getElementById('mainChart');
+    if (!chartContainer) return false;
+
+    // Show loading skeleton while we initialize
+    if (!state.chart) {
+        showChartSkeleton();
     }
 
-    console.log('Chart library loaded successfully, initializing chart...');
+    // Check if library is available (should always be true with self-hosting)
+    if (!isChartLibraryAvailable()) {
+        console.warn('Chart library not available, will use fallback visualization');
+        state.chartFallbackMode = true;
+        return false;
+    }
 
-    // Clear existing chart
-    chartContainer.innerHTML = '';
-
-    // Create chart with dark theme matching our design
-    state.chart = LightweightCharts.createChart(chartContainer, {
-        width: chartContainer.clientWidth,
-        height: 400,
-        layout: {
-            background: { type: 'solid', color: 'transparent' },
-            textColor: '#94a3b8',
-            fontFamily: "'Inter', sans-serif",
-        },
-        grid: {
-            vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
-            horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
-        },
-        crosshair: {
-            mode: LightweightCharts.CrosshairMode.Normal,
-            vertLine: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                width: 1,
-                style: LightweightCharts.LineStyle.Dashed,
-            },
-            horzLine: {
-                color: 'rgba(255, 255, 255, 0.2)',
-                width: 1,
-                style: LightweightCharts.LineStyle.Dashed,
-            },
-        },
-        rightPriceScale: {
-            borderColor: 'rgba(255, 255, 255, 0.1)',
-            scaleMargins: { top: 0.1, bottom: 0.1 },
-        },
-        timeScale: {
-            borderColor: 'rgba(255, 255, 255, 0.1)',
-            timeVisible: true,
-            secondsVisible: false,
-        },
-        handleScroll: { vertTouchDrag: false },
-        handleScale: { axisPressedMouseMove: true },
-    });
-
-    // Handle resize
-    window.addEventListener('resize', () => {
+    try {
+        // Clear existing chart if any
         if (state.chart) {
-            state.chart.applyOptions({ width: chartContainer.clientWidth });
+            try {
+                state.chart.remove();
+            } catch (e) {
+                // Chart already removed or never existed
+            }
+            state.chart = null;
+            state.chartSeries = [];
         }
-    });
+
+        chartContainer.innerHTML = '';
+
+        // Create chart with dark theme matching our design
+        state.chart = LightweightCharts.createChart(chartContainer, {
+            width: chartContainer.clientWidth,
+            height: 400,
+            layout: {
+                background: { type: 'solid', color: 'transparent' },
+                textColor: '#94a3b8',
+                fontFamily: "'Inter', sans-serif",
+            },
+            grid: {
+                vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+                horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine: {
+                    color: 'rgba(255, 255, 255, 0.2)',
+                    width: 1,
+                    style: LightweightCharts.LineStyle.Dashed,
+                },
+                horzLine: {
+                    color: 'rgba(255, 255, 255, 0.2)',
+                    width: 1,
+                    style: LightweightCharts.LineStyle.Dashed,
+                },
+            },
+            rightPriceScale: {
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                scaleMargins: { top: 0.1, bottom: 0.1 },
+            },
+            timeScale: {
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                timeVisible: true,
+                secondsVisible: false,
+            },
+            handleScroll: { vertTouchDrag: false },
+            handleScale: { axisPressedMouseMove: true },
+        });
+
+        // Handle resize with debouncing for performance
+        const handleResize = debounce(() => {
+            if (state.chart && chartContainer.clientWidth > 0) {
+                state.chart.applyOptions({ width: chartContainer.clientWidth });
+            }
+        }, 100);
+
+        window.addEventListener('resize', handleResize);
+
+        state.chartFallbackMode = false;
+        console.log('Chart initialized successfully');
+        return true;
+
+    } catch (error) {
+        console.error('Chart initialization failed:', error);
+        state.chartFallbackMode = true;
+        return false;
+    }
 }
 
 function updateCandlestickChart(data, variant) {
-    if (!state.chart) {
-        initChart();
+    // Use fallback visualization if chart is not available
+    if (state.chartFallbackMode || !isChartLibraryAvailable()) {
+        renderFallbackChart(data, variant);
+        return;
     }
 
-    // Remove all existing series
-    state.chartSeries.forEach(series => {
-        try {
-            state.chart.removeSeries(series);
-        } catch (e) { }
-    });
-    state.chartSeries = [];
+    // Try to initialize chart if needed
+    if (!state.chart) {
+        const success = initChart();
+        if (!success) {
+            renderFallbackChart(data, variant);
+            return;
+        }
+    }
 
-    // For "all" variant, create separate candlestick series for each variant type
-    if (variant === 'all') {
-        // Group data points by variant
-        const variantGroups = {
-            jumbo: [],
-            breakers_delight: [],
-            hobby: []
-        };
-
-        data.data_points.forEach(point => {
-            const v = point.variant;
-            if (variantGroups[v]) {
-                variantGroups[v].push(point);
-            }
+    try {
+        // Remove all existing series
+        state.chartSeries.forEach(series => {
+            try {
+                state.chart.removeSeries(series);
+            } catch (e) { }
         });
+        state.chartSeries = [];
 
-        // Get all timestamps and use actual sale times
-        // Small offset per variant (minutes) to prevent exact overlap
-        const variantOffsets = { jumbo: 0, breakers_delight: 300, hobby: 600 }; // 0, 5min, 10min offsets
+        // For "all" variant, create separate candlestick series for each variant type
+        if (variant === 'all') {
+            // Group data points by variant
+            const variantGroups = {
+                jumbo: [],
+                breakers_delight: [],
+                hobby: []
+            };
 
-        Object.keys(variantGroups).forEach(variantKey => {
-            const points = variantGroups[variantKey];
-            if (points.length === 0) return;
+            data.data_points.forEach(point => {
+                const v = point.variant;
+                if (variantGroups[v]) {
+                    variantGroups[v].push(point);
+                }
+            });
 
-            const colors = VARIANT_COLORS[variantKey];
-            const offsetSeconds = variantOffsets[variantKey];
+            // Get all timestamps and use actual sale times
+            // Small offset per variant (minutes) to prevent exact overlap
+            const variantOffsets = { jumbo: 0, breakers_delight: 300, hobby: 600 }; // 0, 5min, 10min offsets
 
-            // Sort points by original timestamp
-            const sorted = [...points].sort((a, b) => a.x - b.x);
+            Object.keys(variantGroups).forEach(variantKey => {
+                const points = variantGroups[variantKey];
+                if (points.length === 0) return;
 
-            // Create candlestick data using actual sale timestamps
-            // Add small sequential offset (1 hour between each sale of same variant)
-            // Plus variant offset to prevent overlap
-            const candleData = sorted.map((point, index) => {
+                const colors = VARIANT_COLORS[variantKey];
+                const offsetSeconds = variantOffsets[variantKey];
+
+                // Sort points by original timestamp
+                const sorted = [...points].sort((a, b) => a.x - b.x);
+
+                // Create candlestick data using actual sale timestamps
+                // Add small sequential offset (1 hour between each sale of same variant)
+                // Plus variant offset to prevent overlap
+                const candleData = sorted.map((point, index) => {
+                    const price = point.y;
+                    // Use actual timestamp from sale, add index offset for uniqueness
+                    const actualTime = Math.floor(point.x / 1000) + (index * 3600) + offsetSeconds;
+                    const variance = price * 0.003; // Small variance for candle body
+
+                    return {
+                        time: actualTime,
+                        open: price - variance,
+                        high: price + variance,
+                        low: price - variance,
+                        close: price + variance,
+                    };
+                });
+
+                // Add candlestick series with variant-specific colors
+                const series = state.chart.addCandlestickSeries({
+                    upColor: colors.up,
+                    downColor: colors.up, // Use same color for consistent look
+                    borderUpColor: colors.up,
+                    borderDownColor: colors.up,
+                    wickUpColor: colors.up,
+                    wickDownColor: colors.up,
+                    title: VARIANT_LABELS[variantKey],
+                });
+
+                series.setData(candleData);
+                state.chartSeries.push(series);
+            });
+
+            state.chart.timeScale().fitContent();
+            updateMultiVariantLegend(variantGroups);
+        } else {
+            // Single variant view - use candlesticks
+            const colors = VARIANT_COLORS[variant] || VARIANT_COLORS.all;
+            const sortedPoints = [...data.data_points].sort((a, b) => a.x - b.x);
+
+            const candleData = [];
+
+            sortedPoints.forEach((point, index) => {
                 const price = point.y;
                 // Use actual timestamp from sale, add index offset for uniqueness
-                const actualTime = Math.floor(point.x / 1000) + (index * 3600) + offsetSeconds;
-                const variance = price * 0.003; // Small variance for candle body
+                const actualTime = Math.floor(point.x / 1000) + (index * 3600);
+                const variance = price * 0.005;
 
-                return {
+                candleData.push({
                     time: actualTime,
                     open: price - variance,
                     high: price + variance,
                     low: price - variance,
                     close: price + variance,
-                };
+                });
             });
 
-            // Add candlestick series with variant-specific colors
-            const series = state.chart.addCandlestickSeries({
+            const candleSeries = state.chart.addCandlestickSeries({
                 upColor: colors.up,
-                downColor: colors.up, // Use same color for consistent look
+                downColor: colors.down,
                 borderUpColor: colors.up,
-                borderDownColor: colors.up,
+                borderDownColor: colors.down,
                 wickUpColor: colors.up,
-                wickDownColor: colors.up,
-                title: VARIANT_LABELS[variantKey],
+                wickDownColor: colors.down,
             });
 
-            series.setData(candleData);
-            state.chartSeries.push(series);
-        });
+            if (candleData.length > 0) {
+                candleSeries.setData(candleData);
+                state.chart.timeScale().fitContent();
+            }
 
-        state.chart.timeScale().fitContent();
-        updateMultiVariantLegend(variantGroups);
-    } else {
-        // Single variant view - use candlesticks
-        const colors = VARIANT_COLORS[variant] || VARIANT_COLORS.all;
-        const sortedPoints = [...data.data_points].sort((a, b) => a.x - b.x);
-
-        const candleData = [];
-
-        sortedPoints.forEach((point, index) => {
-            const price = point.y;
-            // Use actual timestamp from sale, add index offset for uniqueness
-            const actualTime = Math.floor(point.x / 1000) + (index * 3600);
-            const variance = price * 0.005;
-
-            candleData.push({
-                time: actualTime,
-                open: price - variance,
-                high: price + variance,
-                low: price - variance,
-                close: price + variance,
-            });
-        });
-
-        const candleSeries = state.chart.addCandlestickSeries({
-            upColor: colors.up,
-            downColor: colors.down,
-            borderUpColor: colors.up,
-            borderDownColor: colors.down,
-            wickUpColor: colors.up,
-            wickDownColor: colors.down,
-        });
-
-        if (candleData.length > 0) {
-            candleSeries.setData(candleData);
-            state.chart.timeScale().fitContent();
+            state.chartSeries.push(candleSeries);
+            updateChartLegend(variant, sortedPoints);
         }
-
-        state.chartSeries.push(candleSeries);
-        updateChartLegend(variant, sortedPoints);
+    } catch (error) {
+        console.error('Chart rendering error, using fallback:', error);
+        renderFallbackChart(data, variant);
     }
 }
 

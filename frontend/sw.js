@@ -3,13 +3,14 @@
  * Provides offline support and better caching for static assets
  */
 
-const CACHE_NAME = 'bowman-tracker-v1';
+const CACHE_NAME = 'bowman-tracker-v2';
 const STATIC_ASSETS = [
     '/',
     '/css/styles.css',
     '/css/components.css',
     '/css/utilities.css',
     '/js/app.js',
+    '/js/vendor/lightweight-charts.min.js', // Self-hosted chart library
     '/manifest.json',
     '/icons/icon-192.png',
     '/icons/icon-512.png'
