@@ -448,13 +448,49 @@ async function loadSalesTable(variant = 'all') {
 // TradingView Lightweight Charts - Candlestick Style
 // ============================================================================
 
-function initChart() {
+function initChart(retryCount = 0) {
     const chartContainer = document.getElementById('mainChart');
     if (!chartContainer) return;
 
+    const MAX_RETRIES = 10;
+    const BASE_DELAY = 500; // Start with 500ms, will increase exponentially
+
     // Check if chart library loaded successfully
     if (typeof LightweightCharts === 'undefined') {
-        console.error('LightweightCharts library not loaded');
+        // Check if all CDNs failed
+        if (window.chartLibraryFailed) {
+            console.error('Chart library failed to load from all CDNs');
+            chartContainer.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary);">
+                    <div style="text-align: center;">
+                        <p>📊 Chart library unavailable</p>
+                        <p style="font-size: 0.75rem; margin-top: 0.5rem;">Please check your internet connection and refresh the page.</p>
+                        <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-primary); color: white; border: none; border-radius: 0.5rem; cursor: pointer;">
+                            Refresh Page
+                        </button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        if (retryCount >= MAX_RETRIES) {
+            console.error('Chart library failed to load after max retries');
+            chartContainer.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary);">
+                    <div style="text-align: center;">
+                        <p>📊 Chart library timed out</p>
+                        <p style="font-size: 0.75rem; margin-top: 0.5rem;">Loading is taking longer than expected.</p>
+                        <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-primary); color: white; border: none; border-radius: 0.5rem; cursor: pointer;">
+                            Refresh Page
+                        </button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        console.log(`Chart library not ready, retry ${retryCount + 1}/${MAX_RETRIES}...`);
         chartContainer.innerHTML = `
             <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: var(--color-text-tertiary);">
                 <div style="text-align: center;">
@@ -463,15 +499,19 @@ function initChart() {
                 </div>
             </div>
         `;
-        // Retry in 2 seconds
+
+        // Exponential backoff with jitter: 500ms, 1s, 2s, 4s...
+        const delay = Math.min(BASE_DELAY * Math.pow(2, retryCount), 5000) + Math.random() * 200;
         setTimeout(() => {
+            initChart(retryCount + 1);
             if (typeof LightweightCharts !== 'undefined') {
-                initChart();
                 loadChartData(state.currentVariant);
             }
-        }, 2000);
+        }, delay);
         return;
     }
+
+    console.log('Chart library loaded successfully, initializing chart...');
 
     // Clear existing chart
     chartContainer.innerHTML = '';
